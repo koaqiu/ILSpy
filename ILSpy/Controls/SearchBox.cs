@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -99,6 +99,15 @@ namespace ICSharpCode.ILSpy.Controls
 			timer.Stop();
 			timer.Interval = this.UpdateDelay;
 			timer.Start();
+
+			UpdateWatermarkLabel();
+		}
+
+		private void UpdateWatermarkLabel()
+		{
+			Label wl = (Label)GetTemplateChild("WatermarkLabel");
+			if (wl != null)
+				wl.Visibility = HasText ? Visibility.Hidden : Visibility.Visible;
 		}
 
 		void timer_Tick(object sender, EventArgs e)
@@ -114,25 +123,13 @@ namespace ICSharpCode.ILSpy.Controls
 
 		protected override void OnLostFocus(RoutedEventArgs e)
 		{
-			if (!HasText)
-			{
-				Label wl = (Label)GetTemplateChild("WatermarkLabel");
-				if (wl != null)
-					wl.Visibility = Visibility.Visible;
-			}
-
+			UpdateWatermarkLabel();
 			base.OnLostFocus(e);
 		}
 
 		protected override void OnGotFocus(RoutedEventArgs e)
 		{
-			if (!HasText)
-			{
-				Label wl = (Label)GetTemplateChild("WatermarkLabel");
-				if (wl != null)
-					wl.Visibility = Visibility.Hidden;
-			}
-
+			UpdateWatermarkLabel();
 			base.OnGotFocus(e);
 		}
 

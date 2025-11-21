@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,15 +17,13 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.ILSpy.Properties;
 using ICSharpCode.ILSpyX;
-
-using SRM = System.Reflection.Metadata;
+using ICSharpCode.ILSpyX.Analyzers;
 
 namespace ICSharpCode.ILSpy.TreeNodes
 {
@@ -58,45 +56,31 @@ namespace ICSharpCode.ILSpy.TreeNodes
 		IEnumerable<ILSpyTreeNode> FetchChildren(CancellationToken cancellationToken)
 		{
 			// FetchChildren() runs on the main thread; but the enumerator will be consumed on a background thread
-			return FindDerivedTypes(list, type, cancellationToken);
+			return FindDerivedTypes(list, Language, type, cancellationToken);
 		}
 
-		internal static IEnumerable<DerivedTypesEntryNode> FindDerivedTypes(AssemblyList list, ITypeDefinition type,
+		internal static IEnumerable<DerivedTypesEntryNode> FindDerivedTypes(AssemblyList list, Language language, ITypeDefinition type,
 			CancellationToken cancellationToken)
 		{
-			var definitionMetadata = type.ParentModule.PEFile.Metadata;
-			var metadataToken = (SRM.TypeDefinitionHandle)type.MetadataToken;
-			var assemblies = list.GetAllAssemblies().GetAwaiter().GetResult()
-				.Select(node => node.GetPEFileOrNull()).Where(asm => asm != null).ToArray();
-			foreach (var module in assemblies)
+			var context = new AnalyzerContext {
+				CancellationToken = cancellationToken,
+				Language = language,
+				AssemblyList = list
+			};
+			var scope = context.GetScopeOf(type);
+
+			foreach (var td in scope.GetTypesInScope(cancellationToken))
 			{
-				var metadata = module.Metadata;
-				var assembly = (MetadataModule)module.GetTypeSystemOrNull().MainModule;
-				foreach (var h in metadata.TypeDefinitions)
+				foreach (var baseType in td.DirectBaseTypes)
 				{
 					cancellationToken.ThrowIfCancellationRequested();
-					var td = metadata.GetTypeDefinition(h);
-					foreach (var iface in td.GetInterfaceImplementations())
+					if (baseType.FullName == type.FullName)
 					{
-						var ifaceImpl = metadata.GetInterfaceImplementation(iface);
-						if (!ifaceImpl.Interface.IsNil && IsSameType(metadata, ifaceImpl.Interface, definitionMetadata, metadataToken))
-							yield return new DerivedTypesEntryNode(list, assembly.GetDefinition(h));
-					}
-					SRM.EntityHandle baseType = td.GetBaseTypeOrNil();
-					if (!baseType.IsNil && IsSameType(metadata, baseType, definitionMetadata, metadataToken))
-					{
-						yield return new DerivedTypesEntryNode(list, assembly.GetDefinition(h));
+						yield return new DerivedTypesEntryNode(list, td);
+						break;
 					}
 				}
 			}
-			yield break;
-		}
-
-		static bool IsSameType(SRM.MetadataReader referenceMetadata, SRM.EntityHandle typeRef,
-							   SRM.MetadataReader definitionMetadata, SRM.TypeDefinitionHandle typeDef)
-		{
-			// FullName contains only namespace, name and type parameter count, therefore this should suffice.
-			return typeRef.GetFullTypeName(referenceMetadata) == typeDef.GetFullTypeName(definitionMetadata);
 		}
 
 		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)

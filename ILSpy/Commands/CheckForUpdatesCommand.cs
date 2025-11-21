@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,21 +17,19 @@
 // DEALINGS IN THE SOFTWARE.
 
 
+using System.Composition;
+
 using ICSharpCode.ILSpy.Properties;
 
 namespace ICSharpCode.ILSpy
 {
 	[ExportMainMenuCommand(ParentMenuID = nameof(Resources._Help), Header = nameof(Resources._CheckUpdates), MenuOrder = 5000)]
+	[Shared]
 	sealed class CheckForUpdatesCommand : SimpleCommand
 	{
-		public override bool CanExecute(object parameter)
+		public override void Execute(object parameter)
 		{
-			return base.CanExecute(parameter);
-		}
-
-		public override async void Execute(object parameter)
-		{
-			await MainWindow.Instance.ShowMessageIfUpdatesAvailableAsync(ILSpySettings.Load(), forceCheck: true);
+			MessageBus.Send(this, new CheckIfUpdateAvailableEventArgs(notify: true));
 		}
 	}
 }

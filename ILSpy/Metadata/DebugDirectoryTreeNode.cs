@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -21,12 +21,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
-using System.Windows.Controls;
-using System.Windows.Data;
 
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
-using ICSharpCode.ILSpy.TextView;
 using ICSharpCode.ILSpy.TreeNodes;
 
 namespace ICSharpCode.ILSpy.Metadata
@@ -43,7 +40,9 @@ namespace ICSharpCode.ILSpy.Metadata
 
 		public override object Text => "Debug Directory";
 
-		public override object Icon => Images.Literal;
+		public override object Icon => Images.ListFolder;
+		public override object ExpandedIcon => Images.ListFolderOpen;
+
 
 		public override bool View(ViewModels.TabPageModel tabPage)
 		{
@@ -70,29 +69,37 @@ namespace ICSharpCode.ILSpy.Metadata
 		{
 			foreach (var entry in module.Reader.ReadDebugDirectory())
 			{
-				switch (entry.Type)
+				try
 				{
-					case DebugDirectoryEntryType.CodeView:
-						var codeViewData = module.Reader.ReadCodeViewDebugDirectoryData(entry);
-						this.Children.Add(new CodeViewTreeNode(codeViewData));
-						break;
+					switch (entry.Type)
+					{
+						case DebugDirectoryEntryType.CodeView:
+							var codeViewData = module.Reader.ReadCodeViewDebugDirectoryData(entry);
+							this.Children.Add(new CodeViewTreeNode(codeViewData));
+							break;
 
-					case DebugDirectoryEntryType.EmbeddedPortablePdb:
-						var embeddedPortablePdbReader = module.Reader.ReadEmbeddedPortablePdbDebugDirectoryData(entry).GetMetadataReader();
-						this.Children.Add(new DebugMetadataTreeNode(module, isEmbedded: true, provider: embeddedPortablePdbReader));
-						break;
+						case DebugDirectoryEntryType.EmbeddedPortablePdb:
+							var embeddedPortablePdbProvider = module.Reader.ReadEmbeddedPortablePdbDebugDirectoryData(entry);
+							var embeddedPortablePdbMetadataFile = new MetadataFile(MetadataFile.MetadataFileKind.ProgramDebugDatabase, module.FileName, embeddedPortablePdbProvider, isEmbedded: true);
+							this.Children.Add(new MetadataTreeNode(embeddedPortablePdbMetadataFile, "Debug Metadata (Embedded)"));
+							break;
 
-					case DebugDirectoryEntryType.PdbChecksum:
-						var pdbChecksumData = module.Reader.ReadPdbChecksumDebugDirectoryData(entry);
-						this.Children.Add(new PdbChecksumTreeNode(pdbChecksumData));
-						break;
+						case DebugDirectoryEntryType.PdbChecksum:
+							var pdbChecksumData = module.Reader.ReadPdbChecksumDebugDirectoryData(entry);
+							this.Children.Add(new PdbChecksumTreeNode(pdbChecksumData));
+							break;
 
-					case DebugDirectoryEntryType.Unknown:
-					case DebugDirectoryEntryType.Coff:
-					case DebugDirectoryEntryType.Reproducible:
-					default:
-						this.Children.Add(new DebugDirectoryEntryTreeNode(module, entry));
-						break;
+						case DebugDirectoryEntryType.Unknown:
+						case DebugDirectoryEntryType.Coff:
+						case DebugDirectoryEntryType.Reproducible:
+						default:
+							this.Children.Add(new DebugDirectoryEntryTreeNode(module, entry));
+							break;
+					}
+				}
+				catch (BadImageFormatException ex)
+				{
+					this.Children.Add(new ErrorTreeNode(ex));
 				}
 			}
 		}
@@ -109,7 +116,9 @@ namespace ICSharpCode.ILSpy.Metadata
 			public ushort MinorVersion { get; set; }
 			public string Type { get; set; }
 			public int SizeOfRawData { get; set; }
+			[ColumnInfo("X8")]
 			public int AddressOfRawData { get; set; }
+			[ColumnInfo("X8")]
 			public int PointerToRawData { get; set; }
 			public string RawData { get; set; }
 
@@ -122,7 +131,7 @@ namespace ICSharpCode.ILSpy.Metadata
 				this.Type = entry.Type.ToString();
 				this.SizeOfRawData = entry.DataSize;
 				this.AddressOfRawData = entry.DataRelativeVirtualAddress;
-				this.AddressOfRawData = entry.DataPointer;
+				this.PointerToRawData = entry.DataPointer;
 			}
 		}
 	}

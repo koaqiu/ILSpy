@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 {
@@ -22,6 +22,11 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			Console.WriteLine($"\ta{args.Length}}}");
 			Console.WriteLine($"{args.Length,5:x}");
 			Console.WriteLine($"{args.Length,5}");
+		}
+
+		public static void Types()
+		{
+			Console.WriteLine($"{(int)Get<long>()}");
 		}
 
 		public static void ArrayExpansionSpecialCases(object[] args)
@@ -116,6 +121,36 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 
 		public void RequiresCast(IFormattable value)
 		{
+		}
+
+		public string ConcatStringCharSC(string s, char c)
+		{
+			return s + c;
+		}
+
+		public string ConcatStringCharCS(string s, char c)
+		{
+			return c + s;
+		}
+
+		public string ConcatStringCharSCS(string s, char c)
+		{
+			return s + c + s;
+		}
+
+		public string ConcatStringCharCSS(string s, char c)
+		{
+			return c + s + s;
+		}
+
+		public string ConcatStringCharCSSC(string s, char c)
+		{
+			return c + s + s + c;
+		}
+
+		public static TReturn Get<TReturn>()
+		{
+			return default(TReturn);
 		}
 	}
 }

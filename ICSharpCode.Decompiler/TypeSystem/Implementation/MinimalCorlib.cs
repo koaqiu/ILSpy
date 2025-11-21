@@ -62,7 +62,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		string ISymbol.Name => "corlib";
 		SymbolKind ISymbol.SymbolKind => SymbolKind.Module;
 
-		Metadata.PEFile IModule.PEFile => null;
+		Metadata.MetadataFile IModule.MetadataFile => null;
 		INamespace IModule.RootNamespace => rootNamespace;
 
 		public IEnumerable<ITypeDefinition> TopLevelTypeDefinitions => typeDefinitions.Where(td => td != null);
@@ -173,7 +173,8 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			IType IType.DeclaringType => null;
 			IType IEntity.DeclaringType => null;
 
-			bool ITypeDefinition.HasExtensionMethods => false;
+			bool ITypeDefinition.HasExtensions => false;
+			ExtensionInfo ITypeDefinition.ExtensionInfo => null;
 			bool ITypeDefinition.IsReadOnly => false;
 
 			TypeKind IType.Kind => typeKind;
@@ -310,6 +311,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			bool ITypeDefinition.IsRecord => false;
 
 			ITypeDefinition IType.GetDefinition() => this;
+			ITypeDefinitionOrUnknown IType.GetDefinitionOrUnknown() => this;
 			TypeParameterSubstitution IType.GetSubstitution() => TypeParameterSubstitution.Identity;
 
 			IType IType.AcceptVisitor(TypeVisitor visitor)

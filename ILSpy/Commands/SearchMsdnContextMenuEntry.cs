@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,15 +17,17 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Linq;
-using System.Threading;
 
 using ICSharpCode.ILSpy.Properties;
 using ICSharpCode.ILSpy.TreeNodes;
 namespace ICSharpCode.ILSpy
 {
+	using System.Composition;
+
 	using ICSharpCode.Decompiler.TypeSystem;
 
 	[ExportContextMenuEntry(Header = nameof(Resources.SearchMSDN), Icon = "images/SearchMsdn", Order = 9999)]
+	[Shared]
 	internal sealed class SearchMsdnContextMenuEntry : IContextMenuEntry
 	{
 		private static string msdnAddress = "https://docs.microsoft.com/dotnet/api/{0}";
@@ -133,7 +135,7 @@ namespace ICSharpCode.ILSpy
 
 			address = address.ToLower();
 			if (!string.IsNullOrEmpty(address))
-				MainWindow.OpenLink(address);
+				GlobalUtils.OpenLink(address);
 		}
 	}
 }

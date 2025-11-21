@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -28,9 +28,9 @@ namespace ICSharpCode.ILSpyX.Search
 	public interface ISearchResultFactory
 	{
 		MemberSearchResult Create(IEntity entity);
-		ResourceSearchResult Create(PEFile module, Resource resource, ITreeNode node, ITreeNode parent);
-		AssemblySearchResult Create(PEFile module);
-		NamespaceSearchResult Create(PEFile module, INamespace @namespace);
+		ResourceSearchResult Create(MetadataFile module, Resource resource, ITreeNode node, ITreeNode parent);
+		AssemblySearchResult Create(MetadataFile module);
+		NamespaceSearchResult Create(MetadataFile module, INamespace @namespace);
 	}
 
 	public class SearchResult
@@ -42,14 +42,14 @@ namespace ICSharpCode.ILSpyX.Search
 
 		public float Fitness { get; set; }
 
-		public string Name { get; set; }
-		public string Location { get; set; }
-		public string Assembly { get; set; }
+		public required string Name { get; set; }
+		public required string Location { get; set; }
+		public required string Assembly { get; set; }
 		public object? ToolTip { get; set; }
-		public object Image { get; set; }
-		public object LocationImage { get; set; }
+		public required object Image { get; set; }
+		public required object LocationImage { get; set; }
 
-		public object AssemblyImage { get; set; }
+		public required object AssemblyImage { get; set; }
 
 		public override string ToString()
 		{
@@ -76,25 +76,33 @@ namespace ICSharpCode.ILSpyX.Search
 
 	public class MemberSearchResult : SearchResult
 	{
+#nullable disable
 		public IEntity Member { get; set; }
 		public override object Reference => Member;
+#nullable enable
 	}
 
 	public class ResourceSearchResult : SearchResult
 	{
+#nullable disable
 		public Resource Resource { get; set; }
+#nullable enable
 		public override object Reference => ValueTuple.Create(Resource, Name);
 	}
 
 	public class AssemblySearchResult : SearchResult
 	{
-		public PEFile Module { get; set; }
+#nullable disable
+		public MetadataFile Module { get; set; }
 		public override object Reference => Module;
+#nullable enable
 	}
 
 	public class NamespaceSearchResult : SearchResult
 	{
+#nullable disable
 		public INamespace Namespace { get; set; }
 		public override object Reference => Namespace;
+#nullable enable
 	}
 }

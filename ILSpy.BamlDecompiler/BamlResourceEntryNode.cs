@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2020 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2020 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -23,6 +23,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using ICSharpCode.AvalonEdit.Highlighting;
+using ICSharpCode.BamlDecompiler;
 using ICSharpCode.ILSpy;
 using ICSharpCode.ILSpy.TextView;
 using ICSharpCode.ILSpy.TreeNodes;
@@ -65,7 +66,7 @@ namespace ILSpy.BamlDecompiler
 		{
 			var asm = this.Ancestors().OfType<AssemblyTreeNode>().First().LoadedAssembly;
 			using var data = OpenStream();
-			BamlDecompilerTypeSystem typeSystem = new BamlDecompilerTypeSystem(asm.GetPEFileOrNull(), asm.GetAssemblyResolver());
+			BamlDecompilerTypeSystem typeSystem = new BamlDecompilerTypeSystem(asm.GetMetadataFileOrNull(), asm.GetAssemblyResolver());
 			var decompiler = new XamlDecompiler(typeSystem, new BamlDecompilerSettings());
 			decompiler.CancellationToken = cancellationToken;
 			var result = decompiler.Decompile(data);

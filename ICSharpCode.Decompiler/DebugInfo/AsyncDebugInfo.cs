@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Immutable;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -36,7 +36,7 @@ namespace ICSharpCode.Decompiler.DebugInfo
 			{
 				blob.WriteUInt32((uint)await.YieldOffset);
 				blob.WriteUInt32((uint)await.ResumeOffset);
-				blob.WriteCompressedInteger(MetadataTokens.GetToken(moveNext));
+				blob.WriteCompressedInteger(MetadataTokens.GetRowNumber(moveNext));
 			}
 			return blob;
 		}

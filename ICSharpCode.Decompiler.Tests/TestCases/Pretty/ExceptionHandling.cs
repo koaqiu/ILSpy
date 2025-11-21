@@ -1,4 +1,4 @@
-﻿// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -418,9 +418,9 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			{
 				Console.WriteLine(input);
 			}
-			catch (TException val)
+			catch (TException ex)
 			{
-				Console.WriteLine(val.Message);
+				Console.WriteLine(ex.Message);
 				throw;
 			}
 		}
@@ -452,9 +452,9 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			{
 				Console.WriteLine(input);
 			}
-			catch (TException val) when (val.Message.Contains("Test"))
+			catch (TException ex) when (ex.Message.Contains("Test"))
 			{
-				Console.WriteLine(val.Message);
+				Console.WriteLine(ex.Message);
 				throw;
 			}
 		}
@@ -465,9 +465,9 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			{
 				Console.WriteLine(input);
 			}
-			catch (TException val) when (val.Message.Contains("Test"))
+			catch (TException ex) when (ex.Message.Contains("Test"))
 			{
-				Console.WriteLine("{0} {1}", val, val.ToString());
+				Console.WriteLine("{0} {1}", ex, ex.ToString());
 			}
 		}
 

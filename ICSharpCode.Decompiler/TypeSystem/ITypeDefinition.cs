@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -23,11 +23,12 @@ using System.Collections.Generic;
 namespace ICSharpCode.Decompiler.TypeSystem
 {
 	/// <summary>
-	/// Represents a class, enum, interface, struct, delegate or VB module.
+	/// Represents a class, enum, interface, struct, delegate, record or VB module.
 	/// For partial classes, this represents the whole class.
 	/// </summary>
-	public interface ITypeDefinition : IType, IEntity
+	public interface ITypeDefinition : ITypeDefinitionOrUnknown, IType, IEntity
 	{
+		ExtensionInfo? ExtensionInfo { get; }
 		IReadOnlyList<ITypeDefinition> NestedTypes { get; }
 		IReadOnlyList<IMember> Members { get; }
 
@@ -54,11 +55,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		bool IsReadOnly { get; }
 
 		/// <summary>
-		/// Gets the full name of this type.
-		/// </summary>
-		FullTypeName FullTypeName { get; }
-
-		/// <summary>
 		/// Gets the short type name as stored in metadata.
 		/// That is, the short type name including the generic arity (`N) appended.
 		/// </summary>
@@ -76,10 +72,10 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		new IType? DeclaringType { get; } // solves ambiguity between IType.DeclaringType and IEntity.DeclaringType
 
 		/// <summary>
-		/// Gets whether this type contains extension methods.
+		/// Gets whether this type contains extension methods or C# 14 extensions.
 		/// </summary>
-		/// <remarks>This property is used to speed up the search for extension methods.</remarks>
-		bool HasExtensionMethods { get; }
+		/// <remarks>This property is used to speed up the search for extension members.</remarks>
+		bool HasExtensions { get; }
 
 		/// <summary>
 		/// The nullability specified in the [NullableContext] attribute on the type.

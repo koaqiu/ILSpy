@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace ICSharpCode.Decompiler.TypeSystem.Implementation
@@ -18,7 +18,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			Debug.Assert(nullability != Nullability.Oblivious);
 			// Due to IType -> concrete type casts all over the type system, we can insert
 			// the NullabilityAnnotatedType wrapper only in some limited places.
-			Debug.Assert(type is ITypeDefinition
+			Debug.Assert(type is ITypeDefinition { IsReferenceType: not false }
 				|| type.Kind == TypeKind.Dynamic
 				|| type.Kind == TypeKind.Unknown
 				|| (type is ITypeParameter && this is ITypeParameter));
@@ -115,6 +115,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		bool ITypeParameter.HasReferenceTypeConstraint => baseType.HasReferenceTypeConstraint;
 		bool ITypeParameter.HasValueTypeConstraint => baseType.HasValueTypeConstraint;
 		bool ITypeParameter.HasUnmanagedConstraint => baseType.HasUnmanagedConstraint;
+		bool ITypeParameter.AllowsRefLikeType => baseType.AllowsRefLikeType;
 		Nullability ITypeParameter.NullabilityConstraint => baseType.NullabilityConstraint;
 		IReadOnlyList<TypeConstraint> ITypeParameter.TypeConstraints => baseType.TypeConstraints;
 		SymbolKind ISymbol.SymbolKind => SymbolKind.TypeParameter;

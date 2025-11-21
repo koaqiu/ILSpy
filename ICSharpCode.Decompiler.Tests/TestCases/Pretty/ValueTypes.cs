@@ -1,4 +1,4 @@
-﻿// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -291,5 +291,24 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		public static void Test(object x)
 		{
 		}
+
+#if CS120
+		public static void AcceptIn(in S o)
+		{
+		}
+
+		public static void AcceptRefReadOnly(ref readonly S o)
+		{
+		}
+
+		private static void Use(in S param)
+		{
+			AcceptIn(new S(5));
+			S o = new S(10);
+			AcceptRefReadOnly(in o);
+			AcceptIn(in param);
+			AcceptRefReadOnly(in param);
+		}
+#endif
 	}
 }

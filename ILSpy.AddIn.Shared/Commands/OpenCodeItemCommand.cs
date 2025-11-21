@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -140,7 +140,7 @@ namespace ICSharpCode.ILSpy.AddIn.Commands
 				return;
 			}
 
-			OpenAssembliesInILSpy(new ILSpyParameters(validRefs.Select(r => r.AssemblyFile), "/navigateTo:" +
+			OpenAssembliesInILSpy(new ILSpyParameters(validRefs.Select(r => r.AssemblyFile), "--navigateto:" +
 				(symbol.OriginalDefinition ?? symbol).GetDocumentationCommentId()));
 		}
 

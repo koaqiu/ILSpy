@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,7 +17,7 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.ComponentModel.Composition;
+using System.Composition;
 using System.IO;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
@@ -31,6 +31,7 @@ using ICSharpCode.ILSpyX.Abstractions;
 namespace ICSharpCode.ILSpy.TreeNodes
 {
 	[Export(typeof(IResourceNodeFactory))]
+	[Shared]
 	sealed class IconResourceNodeFactory : IResourceNodeFactory
 	{
 		public ITreeNode CreateNode(Resource resource)

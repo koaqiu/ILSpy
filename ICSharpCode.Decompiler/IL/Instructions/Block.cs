@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 // Copyright (c) 2014-2016 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
@@ -217,6 +217,22 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
+		internal override bool CanInlineIntoSlot(int childIndex, ILInstruction expressionBeingMoved)
+		{
+			switch (Kind)
+			{
+				case BlockKind.ControlFlow when Parent is BlockContainer:
+				case BlockKind.ArrayInitializer:
+				case BlockKind.CollectionInitializer:
+				case BlockKind.ObjectInitializer:
+				case BlockKind.CallInlineAssign:
+					// Allow inlining into the first instruction of the block
+					return childIndex == 0;
+				default:
+					return false;
+			}
+		}
+
 		/// <summary>
 		/// Gets the name of this block.
 		/// </summary>
@@ -328,6 +344,7 @@ namespace ICSharpCode.Decompiler.IL
 			foreach (var transform in transforms)
 			{
 				context.CancellationToken.ThrowIfCancellationRequested();
+				Debug.Assert(context.IndexOfFirstAlreadyTransformedInstruction <= this.Instructions.Count);
 				context.StepStartGroup(transform.GetType().Name);
 				transform.Run(this, context);
 				this.CheckInvariant(ILPhase.Normal);
@@ -377,6 +394,22 @@ namespace ICSharpCode.Decompiler.IL
 			{
 				if (curr is Block b)
 					return b;
+				curr = curr.Parent;
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Gets the closest ancestor that is child of a control-flow (top-level) Block.
+		/// Returns null, if the instruction is not a descendant of a Block.
+		/// </summary>
+		public static ILInstruction? GetContainingStatement(ILInstruction inst)
+		{
+			var curr = inst;
+			while (curr != null)
+			{
+				if (curr.Parent is Block { Kind: BlockKind.ControlFlow })
+					return curr;
 				curr = curr.Parent;
 			}
 			return null;

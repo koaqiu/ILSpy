@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -34,7 +34,7 @@ namespace ICSharpCode.Decompiler
 		void Write(string text);
 		void WriteLine();
 		void WriteReference(OpCodeInfo opCode, bool omitSuffix = false);
-		void WriteReference(PEFile module, Handle handle, string text, string protocol = "decompile", bool isDefinition = false);
+		void WriteReference(MetadataFile metadata, Handle handle, string text, string protocol = "decompile", bool isDefinition = false);
 		void WriteReference(IType type, string text, bool isDefinition = false);
 		void WriteReference(IMember member, string text, bool isDefinition = false);
 		void WriteLocalReference(string text, object reference, bool isDefinition = false);

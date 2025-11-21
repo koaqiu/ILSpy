@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -24,8 +24,8 @@ namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 	{
 		readonly string name;
 
-		public AnalyzedAccessorTreeNode(IMethod analyzedMethod, string name)
-			: base(analyzedMethod)
+		public AnalyzedAccessorTreeNode(IMethod analyzedMethod, IEntity source, string name)
+			: base(analyzedMethod, source)
 		{
 			if (string.IsNullOrWhiteSpace(name))
 			{

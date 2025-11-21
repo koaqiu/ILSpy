@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2015 Daniel Grunwald
+// Copyright (c) 2015 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -22,9 +22,11 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 
+using ICSharpCode.Decompiler.CSharp.Resolver;
 using ICSharpCode.Decompiler.CSharp.TypeSystem;
 using ICSharpCode.Decompiler.DebugInfo;
 using ICSharpCode.Decompiler.TypeSystem;
+using ICSharpCode.Decompiler.Util;
 
 namespace ICSharpCode.Decompiler.IL.Transforms
 {
@@ -47,10 +49,21 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		public DecompilerSettings Settings { get; }
 		public CancellationToken CancellationToken { get; set; }
 		public Stepper Stepper { get; set; }
-		public Metadata.PEFile PEFile => TypeSystem.MainModule.PEFile;
+		public Metadata.MetadataFile PEFile => TypeSystem.MainModule.MetadataFile;
 
 		internal DecompileRun? DecompileRun { get; set; }
-		internal ResolvedUsingScope? UsingScope => DecompileRun?.UsingScope.Resolve(TypeSystem);
+		internal UsingScope? UsingScope => DecompileRun?.UsingScope;
+
+		CSharpResolver? csharpResolver;
+
+		internal CSharpResolver CSharpResolver {
+			get {
+				var resolver = LazyInit.VolatileRead(ref csharpResolver);
+				if (resolver != null)
+					return resolver;
+				return LazyInit.GetOrSet(ref csharpResolver, new CSharpResolver(new CSharpTypeResolveContext(TypeSystem.MainModule, UsingScope)));
+			}
+		}
 
 		public ILTransformContext(ILFunction function, IDecompilerTypeSystem typeSystem, IDebugInfoProvider? debugInfo, DecompilerSettings? settings = null)
 		{
@@ -79,6 +92,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			return new ILReader(TypeSystem.MainModule) {
 				UseDebugSymbols = Settings.UseDebugSymbols,
+				UseRefLocalsForAccurateOrderOfEvaluation = Settings.UseRefLocalsForAccurateOrderOfEvaluation,
 				DebugInfo = DebugInfo
 			};
 		}
@@ -88,12 +102,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// Unlike <c>context.Stepper.Step()</c>, calls to this method are only compiled in debug builds.
 		/// </summary>
 		[Conditional("STEP")]
+		[DebuggerStepThrough]
 		internal void Step(string description, ILInstruction? near)
 		{
 			Stepper.Step(description, near);
 		}
 
 		[Conditional("STEP")]
+		[DebuggerStepThrough]
 		internal void StepStartGroup(string description, ILInstruction? near = null)
 		{
 			Stepper.StartGroup(description, near);

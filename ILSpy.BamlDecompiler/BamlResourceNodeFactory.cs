@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2020 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2020 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,10 +17,10 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.ComponentModel.Composition;
+using System.Composition;
 using System.IO;
-using System.Linq;
 
+using ICSharpCode.BamlDecompiler;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 using ICSharpCode.Decompiler.Metadata;
@@ -32,6 +32,7 @@ using ICSharpCode.ILSpyX.Abstractions;
 namespace ILSpy.BamlDecompiler
 {
 	[Export(typeof(IResourceNodeFactory))]
+	[Shared]
 	public sealed class BamlResourceNodeFactory : IResourceNodeFactory
 	{
 		public ITreeNode CreateNode(Resource resource)
@@ -44,6 +45,7 @@ namespace ILSpy.BamlDecompiler
 	}
 
 	[Export(typeof(IResourceFileHandler))]
+	[Shared]
 	public sealed class BamlResourceFileHandler : IResourceFileHandler
 	{
 		public string EntryType => "Page";
@@ -51,7 +53,7 @@ namespace ILSpy.BamlDecompiler
 
 		public string WriteResourceToFile(LoadedAssembly assembly, string fileName, Stream stream, ResourceFileHandlerContext context)
 		{
-			BamlDecompilerTypeSystem typeSystem = new BamlDecompilerTypeSystem(assembly.GetPEFileOrNull(), assembly.GetAssemblyResolver());
+			BamlDecompilerTypeSystem typeSystem = new BamlDecompilerTypeSystem(assembly.GetMetadataFileOrNull(), assembly.GetAssemblyResolver());
 			var decompiler = new XamlDecompiler(typeSystem, new BamlDecompilerSettings() {
 				ThrowOnAssemblyResolveErrors = context.DecompilationOptions.DecompilerSettings.ThrowOnAssemblyResolveErrors
 			});
@@ -60,7 +62,7 @@ namespace ILSpy.BamlDecompiler
 			var typeDefinition = result.TypeName.HasValue ? typeSystem.MainModule.GetTypeDefinition(result.TypeName.Value.TopLevelTypeName) : null;
 			if (typeDefinition != null)
 			{
-				fileName = WholeProjectDecompiler.CleanUpPath(typeDefinition.ReflectionName) + ".xaml";
+				fileName = WholeProjectDecompiler.SanitizeFileName(typeDefinition.ReflectionName + ".xaml");
 				var partialTypeInfo = new PartialTypeInfo(typeDefinition);
 				foreach (var member in result.GeneratedMembers)
 				{
@@ -72,6 +74,8 @@ namespace ILSpy.BamlDecompiler
 			{
 				fileName = Path.ChangeExtension(fileName, ".xaml");
 			}
+			context.AdditionalProperties.Add("Generator", "MSBuild:Compile");
+			context.AdditionalProperties.Add("SubType", "Designer");
 			string saveFileName = Path.Combine(context.DecompilationOptions.SaveAsProjectDirectory, fileName);
 			Directory.CreateDirectory(Path.GetDirectoryName(saveFileName));
 			result.Xaml.Save(saveFileName);

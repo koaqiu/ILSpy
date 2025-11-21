@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014-2020 Daniel Grunwald
+// Copyright (c) 2014-2020 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -19,6 +19,7 @@
 #nullable enable
 
 using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
@@ -121,6 +122,8 @@ namespace ICSharpCode.Decompiler.IL
 		NullableRewrap,
 		/// <summary>Loads a constant string.</summary>
 		LdStr,
+		/// <summary>Loads a constant byte string (as ReadOnlySpan&lt;byte&gt;).</summary>
+		LdStrUtf8,
 		/// <summary>Loads a constant 32-bit integer.</summary>
 		LdcI4,
 		/// <summary>Loads a constant 64-bit integer.</summary>
@@ -161,6 +164,8 @@ namespace ICSharpCode.Decompiler.IL
 		IsInst,
 		/// <summary>Indirect load (ref/pointer dereference).</summary>
 		LdObj,
+		/// <summary>If argument is a ref to a reference type, loads the object reference, stores it in a temporary, and evaluates to the address of that temporary (address.of(ldobj(arg))). Otherwise, returns the argument ref as-is.<para>This instruction represents the memory-load semantics of callvirt with a generic type as receiver (where the IL always takes a ref, but only methods on value types expect one, for method on reference types there's an implicit ldobj, which this instruction makes explicit in order to preserve the order-of-evaluation).</para></summary>
+		LdObjIfRef,
 		/// <summary>Indirect store (store to ref/pointer).
 		/// Evaluates to the value that was stored (when using type byte/short: evaluates to the truncated value, sign/zero extended back to I4 based on type.GetSign())</summary>
 		StObj,
@@ -186,6 +191,8 @@ namespace ICSharpCode.Decompiler.IL
 		LdLen,
 		/// <summary>Load address of array element.</summary>
 		LdElema,
+		/// <summary>Load address of inline array element.</summary>
+		LdElemaInlineArray,
 		/// <summary>Retrieves a pinnable reference for the input object.
 		/// The input must be an object reference (O).
 		/// If the input is an array/string, evaluates to a reference to the first element/character, or to a null reference if the array is null or empty.
@@ -2839,6 +2846,43 @@ namespace ICSharpCode.Decompiler.IL
 }
 namespace ICSharpCode.Decompiler.IL
 {
+	/// <summary>Loads a constant byte string (as ReadOnlySpan&lt;byte&gt;).</summary>
+	public sealed partial class LdStrUtf8 : SimpleInstruction
+	{
+		public LdStrUtf8(string value) : base(OpCode.LdStrUtf8)
+		{
+			this.Value = value;
+		}
+		public readonly string Value;
+		public override StackType ResultType { get { return StackType.O; } }
+		public override void WriteTo(ITextOutput output, ILAstWritingOptions options)
+		{
+			WriteILRange(output, options);
+			output.Write(OpCode);
+			output.Write(' ');
+			Disassembler.DisassemblerHelpers.WriteOperand(output, Value);
+		}
+		public override void AcceptVisitor(ILVisitor visitor)
+		{
+			visitor.VisitLdStrUtf8(this);
+		}
+		public override T AcceptVisitor<T>(ILVisitor<T> visitor)
+		{
+			return visitor.VisitLdStrUtf8(this);
+		}
+		public override T AcceptVisitor<C, T>(ILVisitor<C, T> visitor, C context)
+		{
+			return visitor.VisitLdStrUtf8(this, context);
+		}
+		protected internal override bool PerformMatch(ILInstruction? other, ref Patterns.Match match)
+		{
+			var o = other as LdStrUtf8;
+			return o != null && this.Value == o.Value;
+		}
+	}
+}
+namespace ICSharpCode.Decompiler.IL
+{
 	/// <summary>Loads a constant 32-bit integer.</summary>
 	public sealed partial class LdcI4 : SimpleInstruction
 	{
@@ -3688,10 +3732,10 @@ namespace ICSharpCode.Decompiler.IL
 	/// <summary>Load address of instance field</summary>
 	public sealed partial class LdFlda : ILInstruction, IInstructionWithFieldOperand
 	{
-		public LdFlda(ILInstruction target, IField field) : base(OpCode.LdFlda)
+		public LdFlda(ILInstruction target, IField @field) : base(OpCode.LdFlda)
 		{
 			this.Target = target;
-			this.field = field;
+			this.@field = @field;
 		}
 		public static readonly SlotInfo TargetSlot = new SlotInfo("Target", canInlineInto: true);
 		ILInstruction target = null!;
@@ -3744,9 +3788,9 @@ namespace ICSharpCode.Decompiler.IL
 			return clone;
 		}
 		public bool DelayExceptions; // NullReferenceException/IndexOutOfBoundsException only occurs when the reference is dereferenced
-		readonly IField field;
+		readonly IField @field;
 		/// <summary>Returns the field operand.</summary>
-		public IField Field { get { return field; } }
+		public IField Field { get { return @field; } }
 		public override StackType ResultType { get { return target.ResultType.IsIntegerType() ? StackType.I : StackType.Ref; } }
 		protected override InstructionFlags ComputeFlags()
 		{
@@ -3764,7 +3808,7 @@ namespace ICSharpCode.Decompiler.IL
 				output.Write("delayex.");
 			output.Write(OpCode);
 			output.Write(' ');
-			field.WriteTo(output);
+			@field.WriteTo(output);
 			output.Write('(');
 			this.target.WriteTo(output, options);
 			output.Write(')');
@@ -3784,7 +3828,7 @@ namespace ICSharpCode.Decompiler.IL
 		protected internal override bool PerformMatch(ILInstruction? other, ref Patterns.Match match)
 		{
 			var o = other as LdFlda;
-			return o != null && this.target.PerformMatch(o.target, ref match) && DelayExceptions == o.DelayExceptions && field.Equals(o.field);
+			return o != null && this.target.PerformMatch(o.target, ref match) && DelayExceptions == o.DelayExceptions && @field.Equals(o.@field);
 		}
 	}
 }
@@ -3793,20 +3837,20 @@ namespace ICSharpCode.Decompiler.IL
 	/// <summary>Load static field address</summary>
 	public sealed partial class LdsFlda : SimpleInstruction, IInstructionWithFieldOperand
 	{
-		public LdsFlda(IField field) : base(OpCode.LdsFlda)
+		public LdsFlda(IField @field) : base(OpCode.LdsFlda)
 		{
-			this.field = field;
+			this.@field = @field;
 		}
 		public override StackType ResultType { get { return StackType.Ref; } }
-		readonly IField field;
+		readonly IField @field;
 		/// <summary>Returns the field operand.</summary>
-		public IField Field { get { return field; } }
+		public IField Field { get { return @field; } }
 		public override void WriteTo(ITextOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
 			output.Write(' ');
-			field.WriteTo(output);
+			@field.WriteTo(output);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3823,7 +3867,7 @@ namespace ICSharpCode.Decompiler.IL
 		protected internal override bool PerformMatch(ILInstruction? other, ref Patterns.Match match)
 		{
 			var o = other as LdsFlda;
-			return o != null && field.Equals(o.field);
+			return o != null && @field.Equals(o.@field);
 		}
 	}
 }
@@ -4046,6 +4090,116 @@ namespace ICSharpCode.Decompiler.IL
 }
 namespace ICSharpCode.Decompiler.IL
 {
+	/// <summary>If argument is a ref to a reference type, loads the object reference, stores it in a temporary, and evaluates to the address of that temporary (address.of(ldobj(arg))). Otherwise, returns the argument ref as-is.<para>This instruction represents the memory-load semantics of callvirt with a generic type as receiver (where the IL always takes a ref, but only methods on value types expect one, for method on reference types there's an implicit ldobj, which this instruction makes explicit in order to preserve the order-of-evaluation).</para></summary>
+	public sealed partial class LdObjIfRef : ILInstruction
+	{
+		public LdObjIfRef(ILInstruction target, IType type) : base(OpCode.LdObjIfRef)
+		{
+			this.Target = target;
+			this.type = type;
+		}
+		public static readonly SlotInfo TargetSlot = new SlotInfo("Target", canInlineInto: true);
+		ILInstruction target = null!;
+		public ILInstruction Target {
+			get { return this.target; }
+			set {
+				ValidateChild(value);
+				SetChildInstruction(ref this.target, value, 0);
+			}
+		}
+		protected sealed override int GetChildCount()
+		{
+			return 1;
+		}
+		protected sealed override ILInstruction GetChild(int index)
+		{
+			switch (index)
+			{
+				case 0:
+					return this.target;
+				default:
+					throw new IndexOutOfRangeException();
+			}
+		}
+		protected sealed override void SetChild(int index, ILInstruction value)
+		{
+			switch (index)
+			{
+				case 0:
+					this.Target = value;
+					break;
+				default:
+					throw new IndexOutOfRangeException();
+			}
+		}
+		protected sealed override SlotInfo GetChildSlot(int index)
+		{
+			switch (index)
+			{
+				case 0:
+					return TargetSlot;
+				default:
+					throw new IndexOutOfRangeException();
+			}
+		}
+		public sealed override ILInstruction Clone()
+		{
+			var clone = (LdObjIfRef)ShallowClone();
+			clone.Target = this.target.Clone();
+			return clone;
+		}
+		IType type;
+		/// <summary>Returns the type operand.</summary>
+		public IType Type {
+			get { return type; }
+			set { type = value; InvalidateFlags(); }
+		}
+		public override StackType ResultType { get { return StackType.Ref; } }
+		protected override InstructionFlags ComputeFlags()
+		{
+			return target.Flags | InstructionFlags.SideEffect | InstructionFlags.MayThrow;
+		}
+		public override InstructionFlags DirectFlags {
+			get {
+				return InstructionFlags.SideEffect | InstructionFlags.MayThrow;
+			}
+		}
+		public override void WriteTo(ITextOutput output, ILAstWritingOptions options)
+		{
+			WriteILRange(output, options);
+			output.Write(OpCode);
+			output.Write(' ');
+			type.WriteTo(output);
+			output.Write('(');
+			this.target.WriteTo(output, options);
+			output.Write(')');
+		}
+		public override void AcceptVisitor(ILVisitor visitor)
+		{
+			visitor.VisitLdObjIfRef(this);
+		}
+		public override T AcceptVisitor<T>(ILVisitor<T> visitor)
+		{
+			return visitor.VisitLdObjIfRef(this);
+		}
+		public override T AcceptVisitor<C, T>(ILVisitor<C, T> visitor, C context)
+		{
+			return visitor.VisitLdObjIfRef(this, context);
+		}
+		protected internal override bool PerformMatch(ILInstruction? other, ref Patterns.Match match)
+		{
+			var o = other as LdObjIfRef;
+			return o != null && this.target.PerformMatch(o.target, ref match) && type.Equals(o.type);
+		}
+		internal override void CheckInvariant(ILPhase phase)
+		{
+			base.CheckInvariant(phase);
+			DebugAssert(target.ResultType == StackType.Ref || target.ResultType == StackType.I);
+		}
+	}
+}
+namespace ICSharpCode.Decompiler.IL
+{
 	/// <summary>Indirect store (store to ref/pointer).
 	/// Evaluates to the value that was stored (when using type byte/short: evaluates to the truncated value, sign/zero extended back to I4 based on type.GetSign())</summary>
 	public sealed partial class StObj : ILInstruction, ISupportsVolatilePrefix, ISupportsUnalignedPrefix
@@ -4201,15 +4355,6 @@ namespace ICSharpCode.Decompiler.IL
 			set { type = value; InvalidateFlags(); }
 		}
 		public override StackType ResultType { get { return StackType.O; } }
-		protected override InstructionFlags ComputeFlags()
-		{
-			return base.ComputeFlags() | InstructionFlags.SideEffect | InstructionFlags.MayThrow;
-		}
-		public override InstructionFlags DirectFlags {
-			get {
-				return base.DirectFlags | InstructionFlags.SideEffect | InstructionFlags.MayThrow;
-			}
-		}
 		public override void WriteTo(ITextOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
@@ -4842,6 +4987,127 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			var o = other as LdElema;
 			return o != null && type.Equals(o.type) && this.array.PerformMatch(o.array, ref match) && Patterns.ListMatch.DoMatch(this.Indices, o.Indices, ref match) && this.WithSystemIndex == o.WithSystemIndex && DelayExceptions == o.DelayExceptions && IsReadOnly == o.IsReadOnly;
+		}
+	}
+}
+namespace ICSharpCode.Decompiler.IL
+{
+	/// <summary>Load address of inline array element.</summary>
+	public sealed partial class LdElemaInlineArray : ILInstruction
+	{
+		public LdElemaInlineArray(IType type, ILInstruction array, params ILInstruction[] indices) : base(OpCode.LdElemaInlineArray)
+		{
+			this.type = type;
+			this.Array = array;
+			this.Indices = new InstructionCollection<ILInstruction>(this, 1);
+			this.Indices.AddRange(indices);
+		}
+		IType type;
+		/// <summary>Returns the type operand.</summary>
+		public IType Type {
+			get { return type; }
+			set { type = value; InvalidateFlags(); }
+		}
+		public static readonly SlotInfo ArraySlot = new SlotInfo("Array", canInlineInto: true);
+		ILInstruction array = null!;
+		public ILInstruction Array {
+			get { return this.array; }
+			set {
+				ValidateChild(value);
+				SetChildInstruction(ref this.array, value, 0);
+			}
+		}
+		public static readonly SlotInfo IndicesSlot = new SlotInfo("Indices", canInlineInto: true);
+		public InstructionCollection<ILInstruction> Indices { get; private set; }
+		protected sealed override int GetChildCount()
+		{
+			return 1 + Indices.Count;
+		}
+		protected sealed override ILInstruction GetChild(int index)
+		{
+			switch (index)
+			{
+				case 0:
+					return this.array;
+				default:
+					return this.Indices[index - 1];
+			}
+		}
+		protected sealed override void SetChild(int index, ILInstruction value)
+		{
+			switch (index)
+			{
+				case 0:
+					this.Array = value;
+					break;
+				default:
+					this.Indices[index - 1] = (ILInstruction)value;
+					break;
+			}
+		}
+		protected sealed override SlotInfo GetChildSlot(int index)
+		{
+			switch (index)
+			{
+				case 0:
+					return ArraySlot;
+				default:
+					return IndicesSlot;
+			}
+		}
+		public sealed override ILInstruction Clone()
+		{
+			var clone = (LdElemaInlineArray)ShallowClone();
+			clone.Array = this.array.Clone();
+			clone.Indices = new InstructionCollection<ILInstruction>(clone, 1);
+			clone.Indices.AddRange(this.Indices.Select(arg => (ILInstruction)arg.Clone()));
+			return clone;
+		}
+		public override StackType ResultType { get { return StackType.Ref; } }
+		/// <summary>Gets whether the 'readonly' prefix was applied to this instruction.</summary>
+		public bool IsReadOnly { get; set; }
+		protected override InstructionFlags ComputeFlags()
+		{
+			return array.Flags | Indices.Aggregate(InstructionFlags.None, (f, arg) => f | arg.Flags) | InstructionFlags.MayThrow;
+		}
+		public override InstructionFlags DirectFlags {
+			get {
+				return InstructionFlags.MayThrow;
+			}
+		}
+		public override void WriteTo(ITextOutput output, ILAstWritingOptions options)
+		{
+			WriteILRange(output, options);
+			if (IsReadOnly)
+				output.Write("readonly.");
+			output.Write(OpCode);
+			output.Write(' ');
+			type.WriteTo(output);
+			output.Write('(');
+			this.array.WriteTo(output, options);
+			foreach (var indices in Indices)
+			{
+				output.Write(", ");
+				indices.WriteTo(output, options);
+			}
+			output.Write(')');
+		}
+		public override void AcceptVisitor(ILVisitor visitor)
+		{
+			visitor.VisitLdElemaInlineArray(this);
+		}
+		public override T AcceptVisitor<T>(ILVisitor<T> visitor)
+		{
+			return visitor.VisitLdElemaInlineArray(this);
+		}
+		public override T AcceptVisitor<C, T>(ILVisitor<C, T> visitor, C context)
+		{
+			return visitor.VisitLdElemaInlineArray(this, context);
+		}
+		protected internal override bool PerformMatch(ILInstruction? other, ref Patterns.Match match)
+		{
+			var o = other as LdElemaInlineArray;
+			return o != null && type.Equals(o.type) && this.array.PerformMatch(o.array, ref match) && Patterns.ListMatch.DoMatch(this.Indices, o.Indices, ref match) && IsReadOnly == o.IsReadOnly;
 		}
 	}
 }
@@ -6947,6 +7213,10 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			Default(inst);
 		}
+		protected internal virtual void VisitLdStrUtf8(LdStrUtf8 inst)
+		{
+			Default(inst);
+		}
 		protected internal virtual void VisitLdcI4(LdcI4 inst)
 		{
 			Default(inst);
@@ -7027,6 +7297,10 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			Default(inst);
 		}
+		protected internal virtual void VisitLdObjIfRef(LdObjIfRef inst)
+		{
+			Default(inst);
+		}
 		protected internal virtual void VisitStObj(StObj inst)
 		{
 			Default(inst);
@@ -7072,6 +7346,10 @@ namespace ICSharpCode.Decompiler.IL
 			Default(inst);
 		}
 		protected internal virtual void VisitLdElema(LdElema inst)
+		{
+			Default(inst);
+		}
+		protected internal virtual void VisitLdElemaInlineArray(LdElemaInlineArray inst)
 		{
 			Default(inst);
 		}
@@ -7345,6 +7623,10 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			return Default(inst);
 		}
+		protected internal virtual T VisitLdStrUtf8(LdStrUtf8 inst)
+		{
+			return Default(inst);
+		}
 		protected internal virtual T VisitLdcI4(LdcI4 inst)
 		{
 			return Default(inst);
@@ -7425,6 +7707,10 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			return Default(inst);
 		}
+		protected internal virtual T VisitLdObjIfRef(LdObjIfRef inst)
+		{
+			return Default(inst);
+		}
 		protected internal virtual T VisitStObj(StObj inst)
 		{
 			return Default(inst);
@@ -7470,6 +7756,10 @@ namespace ICSharpCode.Decompiler.IL
 			return Default(inst);
 		}
 		protected internal virtual T VisitLdElema(LdElema inst)
+		{
+			return Default(inst);
+		}
+		protected internal virtual T VisitLdElemaInlineArray(LdElemaInlineArray inst)
 		{
 			return Default(inst);
 		}
@@ -7743,6 +8033,10 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			return Default(inst, context);
 		}
+		protected internal virtual T VisitLdStrUtf8(LdStrUtf8 inst, C context)
+		{
+			return Default(inst, context);
+		}
 		protected internal virtual T VisitLdcI4(LdcI4 inst, C context)
 		{
 			return Default(inst, context);
@@ -7823,6 +8117,10 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			return Default(inst, context);
 		}
+		protected internal virtual T VisitLdObjIfRef(LdObjIfRef inst, C context)
+		{
+			return Default(inst, context);
+		}
 		protected internal virtual T VisitStObj(StObj inst, C context)
 		{
 			return Default(inst, context);
@@ -7868,6 +8166,10 @@ namespace ICSharpCode.Decompiler.IL
 			return Default(inst, context);
 		}
 		protected internal virtual T VisitLdElema(LdElema inst, C context)
+		{
+			return Default(inst, context);
+		}
+		protected internal virtual T VisitLdElemaInlineArray(LdElemaInlineArray inst, C context)
 		{
 			return Default(inst, context);
 		}
@@ -8013,6 +8315,7 @@ namespace ICSharpCode.Decompiler.IL
 			"nullable.unwrap",
 			"nullable.rewrap",
 			"ldstr",
+			"ldstr.utf8",
 			"ldc.i4",
 			"ldc.i8",
 			"ldc.f4",
@@ -8033,6 +8336,7 @@ namespace ICSharpCode.Decompiler.IL
 			"castclass",
 			"isinst",
 			"ldobj",
+			"ldobj.if.ref",
 			"stobj",
 			"box",
 			"unbox",
@@ -8045,6 +8349,7 @@ namespace ICSharpCode.Decompiler.IL
 			"sizeof",
 			"ldlen",
 			"ldelema",
+			"ldelema.inlinearray",
 			"get.pinnable.reference",
 			"string.to.int",
 			"expression.tree.cast",
@@ -8285,6 +8590,17 @@ namespace ICSharpCode.Decompiler.IL
 			value = default(string);
 			return false;
 		}
+		public bool MatchLdStrUtf8([NotNullWhen(true)] out string? value)
+		{
+			var inst = this as LdStrUtf8;
+			if (inst != null)
+			{
+				value = inst.Value;
+				return true;
+			}
+			value = default(string);
+			return false;
+		}
 		public bool MatchLdcI4(out int value)
 		{
 			var inst = this as LdcI4;
@@ -8464,28 +8780,28 @@ namespace ICSharpCode.Decompiler.IL
 			size = default(ILInstruction);
 			return false;
 		}
-		public bool MatchLdFlda([NotNullWhen(true)] out ILInstruction? target, [NotNullWhen(true)] out IField? field)
+		public bool MatchLdFlda([NotNullWhen(true)] out ILInstruction? target, [NotNullWhen(true)] out IField? @field)
 		{
 			var inst = this as LdFlda;
 			if (inst != null)
 			{
 				target = inst.Target;
-				field = inst.Field;
+				@field = inst.Field;
 				return true;
 			}
 			target = default(ILInstruction);
-			field = default(IField);
+			@field = default(IField);
 			return false;
 		}
-		public bool MatchLdsFlda([NotNullWhen(true)] out IField? field)
+		public bool MatchLdsFlda([NotNullWhen(true)] out IField? @field)
 		{
 			var inst = this as LdsFlda;
 			if (inst != null)
 			{
-				field = inst.Field;
+				@field = inst.Field;
 				return true;
 			}
-			field = default(IField);
+			@field = default(IField);
 			return false;
 		}
 		public bool MatchCastClass([NotNullWhen(true)] out ILInstruction? argument, [NotNullWhen(true)] out IType? type)
@@ -8517,6 +8833,19 @@ namespace ICSharpCode.Decompiler.IL
 		public bool MatchLdObj([NotNullWhen(true)] out ILInstruction? target, [NotNullWhen(true)] out IType? type)
 		{
 			var inst = this as LdObj;
+			if (inst != null)
+			{
+				target = inst.Target;
+				type = inst.Type;
+				return true;
+			}
+			target = default(ILInstruction);
+			type = default(IType);
+			return false;
+		}
+		public bool MatchLdObjIfRef([NotNullWhen(true)] out ILInstruction? target, [NotNullWhen(true)] out IType? type)
+		{
+			var inst = this as LdObjIfRef;
 			if (inst != null)
 			{
 				target = inst.Target;
@@ -8647,6 +8976,19 @@ namespace ICSharpCode.Decompiler.IL
 			array = default(ILInstruction);
 			return false;
 		}
+		public bool MatchLdElemaInlineArray([NotNullWhen(true)] out IType? type, [NotNullWhen(true)] out ILInstruction? array)
+		{
+			var inst = this as LdElemaInlineArray;
+			if (inst != null)
+			{
+				type = inst.Type;
+				array = inst.Array;
+				return true;
+			}
+			type = default(IType);
+			array = default(ILInstruction);
+			return false;
+		}
 		public bool MatchGetPinnableReference([NotNullWhen(true)] out ILInstruction? argument, out IMethod? method)
 		{
 			var inst = this as GetPinnableReference;
@@ -8751,3 +9093,4 @@ namespace ICSharpCode.Decompiler.IL
 		}
 	}
 }
+

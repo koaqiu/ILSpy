@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Daniel Grunwald
+// Copyright (c) 2018 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -109,6 +109,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		}
 
 		bool IField.IsReadOnly => false;
+		bool IField.ReturnTypeIsRefReadOnly => false;
 		bool IField.IsVolatile => false;
 
 		bool IVariable.IsConst => false;
@@ -199,6 +200,16 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		public bool IsIndexer { get; set; }
 		public bool ReturnTypeIsRefReadOnly => false;
 		public IReadOnlyList<IParameter> Parameters { get; set; }
+
+		public override string ToString() =>
+			"FakeProperty " + ReturnType + " " + DeclaringType.Name + "." + Name +
+				(Parameters.Count == 0
+					? ""
+					: "[" + string.Join(", ", Parameters) + "]") +
+				" { " +
+					(CanGet ? "get; " : "") +
+					(CanSet ? "set; " : "") +
+				"}";
 	}
 
 	sealed class FakeEvent : FakeMember, IEvent

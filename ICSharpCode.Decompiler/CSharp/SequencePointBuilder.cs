@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2017 Daniel Grunwald
+// Copyright (c) 2017 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -161,6 +161,30 @@ namespace ICSharpCode.Decompiler.CSharp
 				StartSequencePoint(blockStatement.RBraceToken);
 				AddToSequencePoint(implicitReturn.Leave);
 				EndSequencePoint(blockStatement.RBraceToken.StartLocation, blockStatement.RBraceToken.EndLocation);
+			}
+		}
+
+		public override void VisitPropertyDeclaration(PropertyDeclaration propertyDeclaration)
+		{
+			if (!propertyDeclaration.ExpressionBody.IsNull)
+			{
+				VisitAsSequencePoint(propertyDeclaration.ExpressionBody);
+			}
+			else
+			{
+				base.VisitPropertyDeclaration(propertyDeclaration);
+			}
+		}
+
+		public override void VisitIndexerDeclaration(IndexerDeclaration indexerDeclaration)
+		{
+			if (!indexerDeclaration.ExpressionBody.IsNull)
+			{
+				VisitAsSequencePoint(indexerDeclaration.ExpressionBody);
+			}
+			else
+			{
+				base.VisitIndexerDeclaration(indexerDeclaration);
 			}
 		}
 

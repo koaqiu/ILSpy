@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -27,11 +27,11 @@ namespace ICSharpCode.Decompiler.Disassembler
 {
 	public class DisassemblerSignatureTypeProvider : ISignatureTypeProvider<Action<ILNameSyntax>, MetadataGenericContext>
 	{
-		readonly PEFile module;
+		readonly MetadataFile module;
 		readonly MetadataReader metadata;
 		readonly ITextOutput output;
 
-		public DisassemblerSignatureTypeProvider(PEFile module, ITextOutput output)
+		public DisassemblerSignatureTypeProvider(MetadataFile module, ITextOutput output)
 		{
 			this.module = module ?? throw new ArgumentNullException(nameof(module));
 			this.output = output ?? throw new ArgumentNullException(nameof(output));

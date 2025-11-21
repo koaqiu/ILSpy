@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 Daniel Grunwald
+// Copyright (c) 2014 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -272,11 +272,20 @@ namespace ICSharpCode.Decompiler.CSharp
 				// Conversion of a tuple literal: convert element-wise
 				var newTupleExpr = new TupleExpression();
 				var newElementRRs = new List<ResolveResult>();
-				foreach (var (elementExpr, elementTargetType) in tupleExpr.Elements.Zip(targetTupleType.ElementTypes))
+				// element names: discard existing names and use targetTupleType instead
+				var newElementNames = targetTupleType.ElementNames;
+				foreach (var (index, elementExpr, elementTargetType) in tupleExpr.Elements.ZipWithIndex(targetTupleType.ElementTypes))
 				{
-					var newElementExpr = new TranslatedExpression(elementExpr.Detach())
+					var newElementExpr = new TranslatedExpression((elementExpr is NamedArgumentExpression nae ? nae.Expression : elementExpr).Detach())
 						.ConvertTo(elementTargetType, expressionBuilder, checkForOverflow, allowImplicitConversion);
-					newTupleExpr.Elements.Add(newElementExpr.Expression);
+					if (newElementNames.IsDefaultOrEmpty || newElementNames.ElementAtOrDefault(index) is not string { Length: > 0 } name)
+					{
+						newTupleExpr.Elements.Add(newElementExpr.Expression);
+					}
+					else
+					{
+						newTupleExpr.Elements.Add(new NamedArgumentExpression(name, newElementExpr.Expression));
+					}
 					newElementRRs.Add(newElementExpr.ResolveResult);
 				}
 				return newTupleExpr.WithILInstruction(this.ILInstructions)
@@ -535,6 +544,17 @@ namespace ICSharpCode.Decompiler.CSharp
 						.ConvertTo(targetType, expressionBuilder, checkForOverflow, allowImplicitConversion);
 				}
 			}
+			else if (type.Kind == TypeKind.Dynamic && targetType.IsReferenceType == true && !targetType.IsKnownType(KnownTypeCode.Object))
+			{
+				// "static" conversion between dynamic and a reference type requires us to add a cast to object,
+				// otherwise recompilation would produce a dynamic cast.
+				// (T)dynamicExpression is a "dynamic" cast
+				// (T)(object)dynamicExpression is a "static" cast
+				// as "dynamic" casts are handled differently by ExpressionBuilder.VisitDynamicConvertInstruction
+				// we can always insert the cast to object, if we encounter a conversion from any reference type to dynamic.
+				return this.ConvertTo(compilation.FindType(KnownTypeCode.Object), expressionBuilder)
+					.ConvertTo(targetType, expressionBuilder, checkForOverflow, allowImplicitConversion);
+			}
 			if (targetType.Kind.IsAnyPointer() && (0.Equals(ResolveResult.ConstantValue) || 0u.Equals(ResolveResult.ConstantValue)))
 			{
 				if (allowImplicitConversion)
@@ -710,6 +730,17 @@ namespace ICSharpCode.Decompiler.CSharp
 					.WithoutILInstruction()
 					.WithRR(new OperatorResolveResult(boolType, System.Linq.Expressions.ExpressionType.NotEqual,
 													  this.ResolveResult, nullRef.ResolveResult));
+			}
+			else if (Type.Kind == TypeKind.Enum && Type.GetDefinition() is { } typeDef &&
+					 typeDef.Fields.Any(f => f.GetConstantValue() is { } val && (ulong)CSharpPrimitiveCast.Cast(TypeCode.UInt64, val, false) == 0L))
+			{
+				var zero = expressionBuilder
+					.ConvertConstantValue(new ConstantResolveResult(Type, 0), allowImplicitConversion: true);
+				var op = negate ? BinaryOperatorType.Equality : BinaryOperatorType.InEquality;
+				return new BinaryOperatorExpression(Expression, op, zero.Expression)
+					.WithoutILInstruction()
+					.WithRR(new OperatorResolveResult(boolType, System.Linq.Expressions.ExpressionType.NotEqual,
+						this.ResolveResult, zero.ResolveResult));
 			}
 			else
 			{

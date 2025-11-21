@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -25,8 +25,12 @@ using System.Windows.Media.Imaging;
 
 namespace ICSharpCode.ILSpy
 {
+	using ICSharpCode.Decompiler.TypeSystem;
+
 	static class Images
 	{
+		private static readonly Rect iconRect = new Rect(0, 0, 16, 16);
+
 		static ImageSource Load(string icon)
 		{
 			var image = new DrawingImage(LoadDrawingGroup(null, "Images/" + icon));
@@ -56,6 +60,17 @@ namespace ICSharpCode.ILSpy
 
 		public static readonly ImageSource ReferenceFolder = Load("ReferenceFolder");
 		public static readonly ImageSource NuGet = Load(null, "Images/NuGet.png");
+		public static readonly ImageSource MetadataFile = Load("MetadataFile");
+		public static readonly ImageSource WebAssemblyFile = Load("WebAssembly");
+		public static readonly ImageSource ProgramDebugDatabase = Load("ProgramDebugDatabase");
+
+		public static readonly ImageSource Metadata = Load("Metadata");
+		public static readonly ImageSource Heap = Load("Heap");
+		public static readonly ImageSource Header = Load("Header");
+		public static readonly ImageSource MetadataTable = Load("MetadataTable");
+		public static readonly ImageSource MetadataTableGroup = Load("MetadataTableGroup");
+		public static readonly ImageSource ListFolder = Load("ListFolder");
+		public static readonly ImageSource ListFolderOpen = Load("ListFolder.Open");
 
 		public static readonly ImageSource SubTypes = Load("SubTypes");
 		public static readonly ImageSource SuperTypes = Load("SuperTypes");
@@ -75,6 +90,7 @@ namespace ICSharpCode.ILSpy
 		public static readonly ImageSource Interface = Load("Interface");
 		public static readonly ImageSource Delegate = Load("Delegate");
 		public static readonly ImageSource Enum = Load("Enum");
+		public static readonly ImageSource Type = Load("ShowPublicOnly");
 
 		public static readonly ImageSource Field = Load("Field");
 		public static readonly ImageSource FieldReadOnly = Load("FieldReadOnly");
@@ -99,8 +115,14 @@ namespace ICSharpCode.ILSpy
 		private static readonly ImageSource OverlayPrivate = Load("OverlayPrivate");
 		private static readonly ImageSource OverlayPrivateProtected = Load("OverlayPrivateProtected");
 		private static readonly ImageSource OverlayCompilerControlled = Load("OverlayCompilerControlled");
+		private static readonly ImageSource OverlayReference = Load("ReferenceOverlay");
 
 		private static readonly ImageSource OverlayStatic = Load("OverlayStatic");
+
+		public static readonly ImageSource TypeReference = GetIcon("ShowPublicOnly", "ReferenceOverlay");
+		public static readonly ImageSource MethodReference = GetIcon("Method", "ReferenceOverlay");
+		public static readonly ImageSource FieldReference = GetIcon("Field", "ReferenceOverlay");
+		public static readonly ImageSource ExportedType = GetIcon("ShowPublicOnly", "ExportOverlay");
 
 		public static ImageSource Load(object part, string icon)
 		{
@@ -190,6 +212,66 @@ namespace ICSharpCode.ILSpy
 		{
 			lock (memberIconCache)
 				return memberIconCache.GetIcon(icon, overlay, isStatic);
+		}
+
+		public static AccessOverlayIcon GetOverlayIcon(Accessibility accessibility)
+		{
+			switch (accessibility)
+			{
+				case Accessibility.Public:
+					return AccessOverlayIcon.Public;
+				case Accessibility.Internal:
+					return AccessOverlayIcon.Internal;
+				case Accessibility.ProtectedAndInternal:
+					return AccessOverlayIcon.PrivateProtected;
+				case Accessibility.Protected:
+					return AccessOverlayIcon.Protected;
+				case Accessibility.ProtectedOrInternal:
+					return AccessOverlayIcon.ProtectedInternal;
+				case Accessibility.Private:
+					return AccessOverlayIcon.Private;
+				default:
+					return AccessOverlayIcon.CompilerControlled;
+			}
+		}
+
+		private static ImageSource GetIcon(string baseImage, string overlay = null, bool isStatic = false)
+		{
+			ImageSource baseImageSource = Load(baseImage);
+			ImageSource overlayImageSource = overlay != null ? Load(overlay) : null;
+
+			return CreateOverlayImage(baseImageSource, overlayImageSource, isStatic);
+		}
+
+		private static ImageSource CreateOverlayImage(ImageSource baseImage, ImageSource overlay, bool isStatic)
+		{
+			var group = new DrawingGroup();
+
+			Drawing baseDrawing = new ImageDrawing(baseImage, iconRect);
+
+			if (overlay != null)
+			{
+				var nestedGroup = new DrawingGroup { Transform = new ScaleTransform(0.8, 0.8) };
+				nestedGroup.Children.Add(baseDrawing);
+				group.Children.Add(nestedGroup);
+				group.Children.Add(new ImageDrawing(overlay, iconRect));
+			}
+			else
+			{
+				group.Children.Add(baseDrawing);
+			}
+
+			if (isStatic)
+			{
+				group.Children.Add(new ImageDrawing(Images.OverlayStatic, iconRect));
+			}
+
+			var image = new DrawingImage(group);
+			if (image.CanFreeze)
+			{
+				image.Freeze();
+			}
+			return image;
 		}
 
 		#region icon caches & overlay management
@@ -369,39 +451,6 @@ namespace ICSharpCode.ILSpy
 						throw new ArgumentOutOfRangeException(nameof(overlay), $"AccessOverlayIcon.{overlay} is not supported!");
 				}
 				return overlayImage;
-			}
-
-			private static readonly Rect iconRect = new Rect(0, 0, 16, 16);
-
-			private static ImageSource CreateOverlayImage(ImageSource baseImage, ImageSource overlay, bool isStatic)
-			{
-				var group = new DrawingGroup();
-
-				Drawing baseDrawing = new ImageDrawing(baseImage, iconRect);
-
-				if (overlay != null)
-				{
-					var nestedGroup = new DrawingGroup { Transform = new ScaleTransform(0.8, 0.8) };
-					nestedGroup.Children.Add(baseDrawing);
-					group.Children.Add(nestedGroup);
-					group.Children.Add(new ImageDrawing(overlay, iconRect));
-				}
-				else
-				{
-					group.Children.Add(baseDrawing);
-				}
-
-				if (isStatic)
-				{
-					group.Children.Add(new ImageDrawing(Images.OverlayStatic, iconRect));
-				}
-
-				var image = new DrawingImage(group);
-				if (image.CanFreeze)
-				{
-					image.Freeze();
-				}
-				return image;
 			}
 		}
 

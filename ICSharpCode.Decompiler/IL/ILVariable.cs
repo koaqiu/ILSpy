@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 // Copyright (c) 2014 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
@@ -209,7 +209,7 @@ namespace ICSharpCode.Decompiler.IL
 		/// <summary>
 		/// Gets the block container in which this variable is captured.
 		/// For captured variables declared inside the loop, the capture scope is the BlockContainer of the loop.
-		/// For captured variables declared outside of the loop, the capture scope is the BlockContainer of the parent. 
+		/// For captured variables declared outside of the loop, the capture scope is the BlockContainer of the parent function.
 		/// </summary>
 		/// <remarks>
 		/// This property returns null for variables that are not captured.
@@ -438,21 +438,6 @@ namespace ICSharpCode.Decompiler.IL
 		/// </summary>
 		internal bool RemoveIfRedundant;
 
-		private bool hasNullCheck;
-
-		/// <summary>
-		/// Gets/sets whether a parameter has an auto-generated null check, i.e., the !! modifier.
-		/// Returns false for all variables except parameters.
-		/// </summary>
-		public bool HasNullCheck {
-			get => hasNullCheck;
-			set {
-				if (Kind != VariableKind.Parameter && value)
-					throw new InvalidOperationException("Cannot set HasNullCheck on local variables!");
-				hasNullCheck = value;
-			}
-		}
-
 		public ILVariable(VariableKind kind, IType type, int? index = null)
 		{
 			if (type == null)
@@ -652,9 +637,13 @@ namespace ICSharpCode.Decompiler.IL
 
 		public int GetHashCode(ILVariable obj)
 		{
-			if (obj.Kind == VariableKind.StackSlot)
+			if (obj.Kind is VariableKind.StackSlot or VariableKind.PatternLocal)
 				return obj.GetHashCode();
-			return (obj.Function, obj.Kind, obj.Index).GetHashCode();
+			if (obj.Index != null)
+				return (obj.Function, obj.Kind, obj.Index).GetHashCode();
+			if (obj.StateMachineField != null)
+				return (obj.Function, obj.Kind, obj.StateMachineField).GetHashCode();
+			return obj.GetHashCode();
 		}
 	}
 }

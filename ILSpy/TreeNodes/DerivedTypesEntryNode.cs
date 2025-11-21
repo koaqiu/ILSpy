@@ -17,7 +17,6 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 
 using ICSharpCode.Decompiler;
@@ -26,6 +25,7 @@ using ICSharpCode.ILSpyX;
 namespace ICSharpCode.ILSpy.TreeNodes
 {
 	using ICSharpCode.Decompiler.TypeSystem;
+	using ICSharpCode.ILSpyX.TreeView.PlatformAbstractions;
 
 	class DerivedTypesEntryNode : ILSpyTreeNode, IMemberTreeNode
 	{
@@ -49,13 +49,13 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		public override object Icon => TypeTreeNode.GetIcon(type);
 
-		public override FilterResult Filter(FilterSettings settings)
+		public override FilterResult Filter(LanguageSettings settings)
 		{
 			if (settings.ShowApiLevel == ApiVisibility.PublicOnly && !IsPublicAPI)
 				return FilterResult.Hidden;
 			if (settings.SearchTermMatches(type.Name))
 			{
-				if (type.DeclaringType != null && (settings.ShowApiLevel != ApiVisibility.All || !settings.Language.ShowMember(type)))
+				if (type.DeclaringType != null && (settings.ShowApiLevel != ApiVisibility.All || !LanguageService.Language.ShowMember(type)))
 					return FilterResult.Hidden;
 				else
 					return FilterResult.Match;
@@ -86,10 +86,10 @@ namespace ICSharpCode.ILSpy.TreeNodes
 		IEnumerable<ILSpyTreeNode> FetchChildren(CancellationToken ct)
 		{
 			// FetchChildren() runs on the main thread; but the enumerator will be consumed on a background thread
-			return DerivedTypesTreeNode.FindDerivedTypes(list, type, ct);
+			return DerivedTypesTreeNode.FindDerivedTypes(list, Language, type, ct);
 		}
 
-		public override void ActivateItem(System.Windows.RoutedEventArgs e)
+		public override void ActivateItem(IPlatformRoutedEventArgs e)
 		{
 			e.Handled = BaseTypesEntryNode.ActivateItem(this, type);
 		}

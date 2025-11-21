@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Composition;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -28,7 +29,9 @@ using System.Windows.Threading;
 
 using ICSharpCode.Decompiler;
 using ICSharpCode.ILSpy.Properties;
-using ICSharpCode.TreeView;
+using ICSharpCode.ILSpyX.TreeView;
+
+#nullable enable
 
 namespace ICSharpCode.ILSpy.TreeNodes
 {
@@ -39,7 +42,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 	{
 		readonly Stopwatch stopwatch = new Stopwatch();
 		CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-		Task<List<SharpTreeNode>> loadChildrenTask;
+		Task<List<SharpTreeNode>>? loadChildrenTask;
 
 		public bool IsRunning {
 			get { return loadChildrenTask != null && !loadChildrenTask.IsCompleted; }
@@ -66,7 +69,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 			CancellationToken ct = cancellationTokenSource.Token;
 
 			var fetchChildrenEnumerable = fetchChildren(ct);
-			Task<List<SharpTreeNode>> thisTask = null;
+			Task<List<SharpTreeNode>>? thisTask = null;
 			thisTask = new Task<List<SharpTreeNode>>(
 				delegate {
 					List<SharpTreeNode> result = new List<SharpTreeNode>();
@@ -102,7 +105,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 								{
 									foreach (Exception ex in continuation.Exception.InnerExceptions)
 									{
-										node.Children.Add(new ErrorTreeNode(ex.ToString()));
+										node.Children.Add(new ErrorTreeNode(ex));
 									}
 								}
 							}
@@ -137,30 +140,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 				get { return Resources.Loading; }
 			}
 
-			public override FilterResult Filter(FilterSettings settings)
-			{
-				return FilterResult.Match;
-			}
-
-			public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-			{
-			}
-		}
-
-		sealed class ErrorTreeNode : ILSpyTreeNode
-		{
-			readonly string text;
-
-			public override object Text {
-				get { return text; }
-			}
-
-			public ErrorTreeNode(string text)
-			{
-				this.text = text;
-			}
-
-			public override FilterResult Filter(FilterSettings settings)
+			public override FilterResult Filter(LanguageSettings settings)
 			{
 				return FilterResult.Match;
 			}
@@ -171,6 +151,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 		}
 
 		[ExportContextMenuEntry(Header = nameof(Resources.CopyErrorMessage))]
+		[Shared]
 		sealed class CopyErrorMessageContextMenu : IContextMenuEntry
 		{
 			public bool IsVisible(TextViewContext context)
@@ -196,6 +177,41 @@ namespace ICSharpCode.ILSpy.TreeNodes
 					}
 				}
 				Clipboard.SetText(builder.ToString());
+			}
+		}
+	}
+
+	sealed class ErrorTreeNode : ILSpyTreeNode
+	{
+		public Exception? Exception { get; }
+
+		public override object Text { get; }
+
+		public override object Icon => Images.Load(this, "Images/Warning");
+
+		public ErrorTreeNode(Exception exception)
+			: this(exception.Message)
+		{
+			this.Exception = exception;
+		}
+
+		public ErrorTreeNode(string text)
+		{
+			this.Text = text;
+		}
+
+		public override FilterResult Filter(LanguageSettings settings)
+		{
+			return FilterResult.Match;
+		}
+
+		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
+		{
+			output.WriteLine(this.Text.ToString());
+			output.WriteLine();
+			if (this.Exception != null)
+			{
+				output.WriteLine(this.Exception.ToString());
 			}
 		}
 	}

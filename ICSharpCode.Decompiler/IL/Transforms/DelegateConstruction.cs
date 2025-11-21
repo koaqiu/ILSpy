@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011-2016 Siegfried Pammer
+// Copyright (c) 2011-2016 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -115,7 +115,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			if (!(method.HasGeneratedName()
 				|| method.Name.Contains("$")
-				|| method.IsCompilerGeneratedOrIsInCompilerGeneratedClass()
+				|| method.IsCompilerGenerated()
 				|| TransformDisplayClassUsage.IsPotentialClosure(
 					decompiledTypeDefinition, method.DeclaringTypeDefinition)
 				|| ContainsAnonymousType(method)))
@@ -189,7 +189,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (genericContext == null)
 				return null;
 			var ilReader = context.CreateILReader();
-			var body = context.PEFile.Reader.GetMethodBody(methodDefinition.RelativeVirtualAddress);
+			var body = context.PEFile.GetMethodBody(methodDefinition.RelativeVirtualAddress);
 			var function = ilReader.ReadIL((MethodDefinitionHandle)targetMethod.MetadataToken, body, genericContext.Value, ILFunctionKind.Delegate, context.CancellationToken);
 			function.DelegateType = delegateType;
 			// Embed the lambda into the parent function's ILAst, so that "Show steps" can show

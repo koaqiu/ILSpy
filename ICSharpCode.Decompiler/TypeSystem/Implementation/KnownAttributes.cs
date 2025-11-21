@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2018 Daniel Grunwald
+// Copyright (c) 2010-2018 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -33,6 +33,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		None,
 
 		CompilerGenerated,
+		CompilerFeatureRequired,
 		/// <summary>
 		/// Marks a method as extension method; or a class as containing extension methods.
 		/// </summary>
@@ -44,6 +45,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		NullablePublicOnly,
 		Conditional,
 		Obsolete,
+		Embedded,
 		IsReadOnly,
 		SpecialName,
 		DebuggerHidden,
@@ -85,13 +87,16 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 		// Parameter attributes:
 		ParamArray,
+		ParamCollection,
 		In,
 		Out,
 		Optional,
+		DefaultParameterValue,
 		CallerMemberName,
 		CallerFilePath,
 		CallerLineNumber,
-		LifetimeAnnotation,
+		ScopedRef,
+		RequiresLocation,
 
 		// Type parameter attributes:
 		IsUnmanaged,
@@ -105,15 +110,25 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		// C# 9 attributes:
 		NativeInteger,
 		PreserveBaseOverrides,
+
+		// C# 11 attributes:
+		Required,
+
+		// C# 12 attributes:
+		InlineArray,
+
+		// C# 14 attributes:
+		ExtensionMarker,
 	}
 
 	public static class KnownAttributes
 	{
-		internal const int Count = (int)KnownAttribute.PreserveBaseOverrides + 1;
+		internal const int Count = (int)KnownAttribute.ExtensionMarker + 1;
 
 		static readonly TopLevelTypeName[] typeNames = new TopLevelTypeName[Count]{
 			default,
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(CompilerGeneratedAttribute)),
+			new TopLevelTypeName("System.Runtime.CompilerServices", "CompilerFeatureRequiredAttribute"),
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(ExtensionAttribute)),
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(DynamicAttribute)),
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(TupleElementNamesAttribute)),
@@ -122,6 +137,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			new TopLevelTypeName("System.Runtime.CompilerServices", "NullablePublicOnlyAttribute"),
 			new TopLevelTypeName("System.Diagnostics", nameof(ConditionalAttribute)),
 			new TopLevelTypeName("System", nameof(ObsoleteAttribute)),
+			new TopLevelTypeName("Microsoft.CodeAnalysis", "EmbeddedAttribute"),
 			new TopLevelTypeName("System.Runtime.CompilerServices", "IsReadOnlyAttribute"),
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(SpecialNameAttribute)),
 			new TopLevelTypeName("System.Diagnostics", nameof(DebuggerHiddenAttribute)),
@@ -157,13 +173,16 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(IndexerNameAttribute)),
 			// Parameter attributes:
 			new TopLevelTypeName("System", nameof(ParamArrayAttribute)),
+			new TopLevelTypeName("System.Runtime.CompilerServices", "ParamCollectionAttribute"),
 			new TopLevelTypeName("System.Runtime.InteropServices", nameof(InAttribute)),
 			new TopLevelTypeName("System.Runtime.InteropServices", nameof(OutAttribute)),
 			new TopLevelTypeName("System.Runtime.InteropServices", nameof(OptionalAttribute)),
+			new TopLevelTypeName("System.Runtime.InteropServices", nameof(DefaultParameterValueAttribute)),
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(CallerMemberNameAttribute)),
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(CallerFilePathAttribute)),
 			new TopLevelTypeName("System.Runtime.CompilerServices", nameof(CallerLineNumberAttribute)),
-			new TopLevelTypeName("System.Runtime.CompilerServices", "LifetimeAnnotationAttribute"),
+			new TopLevelTypeName("System.Runtime.CompilerServices", "ScopedRefAttribute"),
+			new TopLevelTypeName("System.Runtime.CompilerServices", "RequiresLocationAttribute"),
 			// Type parameter attributes:
 			new TopLevelTypeName("System.Runtime.CompilerServices", "IsUnmanagedAttribute"),
 			// Marshalling attributes:
@@ -173,6 +192,12 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			// C# 9 attributes:
 			new TopLevelTypeName("System.Runtime.CompilerServices", "NativeIntegerAttribute"),
 			new TopLevelTypeName("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute"),
+			// C# 11 attributes:
+			new TopLevelTypeName("System.Runtime.CompilerServices", "RequiredMemberAttribute"),
+			// C# 12 attributes:
+			new TopLevelTypeName("System.Runtime.CompilerServices", "InlineArrayAttribute"),
+			// C# 14 attributes:
+			new TopLevelTypeName("System.Runtime.CompilerServices", "ExtensionMarkerAttribute"),
 		};
 
 		public static ref readonly TopLevelTypeName GetTypeName(this KnownAttribute attr)
@@ -213,6 +238,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				case KnownAttribute.MarshalAs:
 				case KnownAttribute.PermissionSet:
 				case KnownAttribute.Optional:
+				case KnownAttribute.DefaultParameterValue:
 				case KnownAttribute.In:
 				case KnownAttribute.Out:
 				case KnownAttribute.IndexerName:

@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 // Copyright (c) 2014 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
@@ -68,6 +68,11 @@ namespace ICSharpCode.Decompiler.IL
 		public readonly ILVariableCollection Variables;
 
 		/// <summary>
+		/// Gets 
+		/// </summary>
+		public int LocalVariableSignatureLength;
+
+		/// <summary>
 		/// Gets the scope in which the local function is declared.
 		/// Returns null, if this is not a local function.
 		/// </summary>
@@ -97,6 +102,11 @@ namespace ICSharpCode.Decompiler.IL
 		/// Gets whether the YieldReturnDecompiler determined that the Mono C# compiler was used to compile this function.
 		/// </summary>
 		public bool StateMachineCompiledWithMono;
+
+		/// <summary>
+		/// Gets whether the YieldReturnDecompiler determined that the Legacy VB compiler was used to compile this function.
+		/// </summary>
+		public bool StateMachineCompiledWithLegacyVisualBasic;
 
 		/// <summary>
 		/// Gets whether this function is async.

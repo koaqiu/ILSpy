@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Daniel Grunwald
+// Copyright (c) 2018 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -34,7 +34,10 @@ namespace ICSharpCode.Decompiler.CSharp
 		CSharp9_0 = 900,
 		CSharp10_0 = 1000,
 		CSharp11_0 = 1100,
-		Preview = 1100,
+		CSharp12_0 = 1200,
+		CSharp13_0 = 1300,
+		CSharp14_0 = 1400,
+		Preview = 1400,
 		Latest = 0x7FFFFFFF
 	}
 }

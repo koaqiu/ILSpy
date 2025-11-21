@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -86,6 +86,11 @@ namespace ICSharpCode.Decompiler.Semantics
 		/// C# 7 throw expression being converted to an arbitrary type.
 		/// </summary>
 		public static readonly Conversion ThrowExpressionConversion = new BuiltinConversion(true, 11);
+
+		/// <summary>
+		/// C# 12 inline array implicitly being converted to <see cref="System.Span{T}"/> or <see cref="System.ReadOnlySpan{T}"/>.
+		/// </summary>
+		public static readonly Conversion InlineArrayConversion = new BuiltinConversion(true, 12);
 
 		public static Conversion UserDefinedConversion(IMethod operatorMethod, bool isImplicit, Conversion conversionBeforeUserDefinedOperator, Conversion conversionAfterUserDefinedOperator, bool isLifted = false, bool isAmbiguous = false)
 		{

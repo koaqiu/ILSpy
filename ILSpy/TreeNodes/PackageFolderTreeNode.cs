@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -22,7 +22,7 @@ using System.Linq;
 
 using ICSharpCode.Decompiler;
 using ICSharpCode.ILSpyX;
-using ICSharpCode.TreeView;
+using ICSharpCode.ILSpyX.TreeView;
 
 namespace ICSharpCode.ILSpy.TreeNodes
 {
@@ -67,7 +67,8 @@ namespace ICSharpCode.ILSpy.TreeNodes
 			}
 			foreach (var entry in root.Entries.OrderBy(e => e.Name))
 			{
-				if (entry.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+				if (entry.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+					|| entry.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
 				{
 					var asm = root.ResolveFileName(entry.Name);
 					if (asm != null)

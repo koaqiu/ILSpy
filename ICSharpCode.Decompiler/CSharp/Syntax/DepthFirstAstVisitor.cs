@@ -1,4 +1,4 @@
-﻿// 
+// 
 // IAstVisitor.cs
 //
 // Author:
@@ -155,6 +155,11 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		public virtual void VisitEnumMemberDeclaration(EnumMemberDeclaration enumMemberDeclaration)
 		{
 			VisitChildren(enumMemberDeclaration);
+		}
+
+		public virtual void VisitExtensionDeclaration(ExtensionDeclaration extensionDeclaration)
+		{
+			VisitChildren(extensionDeclaration);
 		}
 
 		public virtual void VisitUsingDeclaration(UsingDeclaration usingDeclaration)
@@ -512,6 +517,11 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			VisitChildren(declarationExpression);
 		}
 
+		public virtual void VisitRecursivePatternExpression(RecursivePatternExpression recursivePatternExpression)
+		{
+			VisitChildren(recursivePatternExpression);
+		}
+
 		public virtual void VisitOutVarDeclarationExpression(OutVarDeclarationExpression outVarDeclarationExpression)
 		{
 			VisitChildren(outVarDeclarationExpression);
@@ -833,6 +843,11 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		public virtual T VisitEnumMemberDeclaration(EnumMemberDeclaration enumMemberDeclaration)
 		{
 			return VisitChildren(enumMemberDeclaration);
+		}
+
+		public virtual T VisitExtensionDeclaration(ExtensionDeclaration extensionDeclaration)
+		{
+			return VisitChildren(extensionDeclaration);
 		}
 
 		public virtual T VisitUsingDeclaration(UsingDeclaration usingDeclaration)
@@ -1190,6 +1205,11 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			return VisitChildren(declarationExpression);
 		}
 
+		public virtual T VisitRecursivePatternExpression(RecursivePatternExpression recursivePatternExpression)
+		{
+			return VisitChildren(recursivePatternExpression);
+		}
+
 		public virtual T VisitOutVarDeclarationExpression(OutVarDeclarationExpression outVarDeclarationExpression)
 		{
 			return VisitChildren(outVarDeclarationExpression);
@@ -1511,6 +1531,11 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		public virtual S VisitEnumMemberDeclaration(EnumMemberDeclaration enumMemberDeclaration, T data)
 		{
 			return VisitChildren(enumMemberDeclaration, data);
+		}
+
+		public virtual S VisitExtensionDeclaration(ExtensionDeclaration extensionDeclaration, T data)
+		{
+			return VisitChildren(extensionDeclaration, data);
 		}
 
 		public virtual S VisitUsingDeclaration(UsingDeclaration usingDeclaration, T data)
@@ -1866,6 +1891,11 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		public virtual S VisitDeclarationExpression(DeclarationExpression declarationExpression, T data)
 		{
 			return VisitChildren(declarationExpression, data);
+		}
+
+		public virtual S VisitRecursivePatternExpression(RecursivePatternExpression recursivePatternExpression, T data)
+		{
+			return VisitChildren(recursivePatternExpression, data);
 		}
 
 		public virtual S VisitOutVarDeclarationExpression(OutVarDeclarationExpression outVarDeclarationExpression, T data)

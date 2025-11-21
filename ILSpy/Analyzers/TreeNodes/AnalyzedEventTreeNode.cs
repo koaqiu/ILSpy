@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,24 +17,27 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.Linq;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
+using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.ILSpy.TreeNodes;
+
+#nullable enable
 
 namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 {
-	using ICSharpCode.Decompiler.TypeSystem;
-
 	internal sealed class AnalyzedEventTreeNode : AnalyzerEntityTreeNode
 	{
 		readonly IEvent analyzedEvent;
 		readonly string prefix;
 
-		public AnalyzedEventTreeNode(IEvent analyzedEvent, string prefix = "")
+		public AnalyzedEventTreeNode(IEvent analyzedEvent, IEntity? source, string prefix = "")
 		{
 			this.analyzedEvent = analyzedEvent ?? throw new ArgumentNullException(nameof(analyzedEvent));
 			this.prefix = prefix;
 			this.LazyLoading = true;
+			this.SourceMember = source;
 		}
 
 		public override IEntity Member => analyzedEvent;
@@ -47,32 +50,29 @@ namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 		protected override void LoadChildren()
 		{
 			if (analyzedEvent.CanAdd)
-				this.Children.Add(new AnalyzedAccessorTreeNode(analyzedEvent.AddAccessor, "add"));
+				this.Children.Add(new AnalyzedAccessorTreeNode(analyzedEvent.AddAccessor, this.SourceMember, "add"));
 			if (analyzedEvent.CanRemove)
-				this.Children.Add(new AnalyzedAccessorTreeNode(analyzedEvent.RemoveAccessor, "remove"));
+				this.Children.Add(new AnalyzedAccessorTreeNode(analyzedEvent.RemoveAccessor, this.SourceMember, "remove"));
 			if (TryFindBackingField(analyzedEvent, out var backingField))
-				this.Children.Add(new AnalyzedFieldTreeNode(backingField));
+				this.Children.Add(new AnalyzedFieldTreeNode(backingField, this.SourceMember));
 
-			//foreach (var accessor in analyzedEvent.OtherMethods)
-			//	this.Children.Add(new AnalyzedAccessorTreeNode(accessor, null));
-
-			var analyzers = App.ExportProvider.GetExports<IAnalyzer, IAnalyzerMetadata>("Analyzer");
-			foreach (var lazy in analyzers.OrderBy(item => item.Metadata.Order))
+			foreach (var lazy in Analyzers)
 			{
 				var analyzer = lazy.Value;
+				Debug.Assert(analyzer != null);
 				if (analyzer.Show(analyzedEvent))
 				{
-					this.Children.Add(new AnalyzerSearchTreeNode(analyzedEvent, analyzer, lazy.Metadata.Header));
+					this.Children.Add(new AnalyzerSearchTreeNode(analyzedEvent, analyzer, lazy.Metadata?.Header));
 				}
 			}
 		}
 
-		bool TryFindBackingField(IEvent analyzedEvent, out IField backingField)
+		bool TryFindBackingField(IEvent analyzedEvent, [NotNullWhen(true)] out IField? backingField)
 		{
 			backingField = null;
-			foreach (var field in analyzedEvent.DeclaringTypeDefinition.GetFields(options: GetMemberOptions.IgnoreInheritedMembers))
+			foreach (var field in analyzedEvent.DeclaringTypeDefinition?.GetFields(options: GetMemberOptions.IgnoreInheritedMembers) ?? [])
 			{
-				if (field.Name == analyzedEvent.Name && field.Accessibility == Accessibility.Private)
+				if (field.Name == analyzedEvent.Name && field.Accessibility == Decompiler.TypeSystem.Accessibility.Private)
 				{
 					backingField = field;
 					return true;

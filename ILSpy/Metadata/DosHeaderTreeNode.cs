@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,8 +17,6 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Collections.Generic;
-using System.Windows.Controls;
-using System.Windows.Data;
 
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
@@ -38,7 +36,7 @@ namespace ICSharpCode.ILSpy.Metadata
 
 		public override object Text => "DOS Header";
 
-		public override object Icon => Images.Literal;
+		public override object Icon => Images.Header;
 
 		public override bool View(TabPageModel tabPage)
 		{
@@ -90,7 +88,6 @@ namespace ICSharpCode.ILSpy.Metadata
 
 		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
 		{
-			language.WriteCommentLine(output, "DOS Header");
 		}
 	}
 }

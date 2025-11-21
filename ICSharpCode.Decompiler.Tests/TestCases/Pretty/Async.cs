@@ -1,4 +1,4 @@
-﻿// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -250,7 +250,7 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			{
 				throw null;
 			}
-			catch (Exception ex2) when (i == 0)
+			catch (Exception ex) when (i == 0)
 			{
 				Console.WriteLine("First!");
 				if (i == 1)
@@ -258,9 +258,9 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 					throw;
 				}
 				await Task.Yield();
-				Console.WriteLine(ex2.StackTrace);
+				Console.WriteLine(ex.StackTrace);
 			}
-			catch (Exception ex3) when (True())
+			catch (Exception ex2) when (True())
 			{
 				Console.WriteLine("Second!");
 				if (i == 1)
@@ -268,9 +268,9 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 					throw;
 				}
 				await Task.Yield();
-				Console.WriteLine(ex3.StackTrace);
+				Console.WriteLine(ex2.StackTrace);
 			}
-			catch (Exception ex)
+			catch (Exception ex3)
 			{
 				Console.WriteLine("Third!");
 				if (i == 1)
@@ -278,7 +278,7 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 					throw;
 				}
 				await Task.Yield();
-				Console.WriteLine(ex.StackTrace);
+				Console.WriteLine(ex3.StackTrace);
 			}
 			catch when (i == 0)
 			{

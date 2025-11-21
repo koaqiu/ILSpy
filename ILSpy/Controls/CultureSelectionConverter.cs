@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2021 Siegfried Pammer
+// Copyright (c) 2021 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -19,10 +19,11 @@
 using System;
 using System.Globalization;
 using System.Windows.Data;
+using System.Windows.Markup;
 
 namespace ICSharpCode.ILSpy.Controls
 {
-	public class CultureSelectionConverter : IValueConverter
+	public class CultureSelectionConverter : MarkupExtension, IValueConverter
 	{
 		public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
 		{
@@ -36,6 +37,11 @@ namespace ICSharpCode.ILSpy.Controls
 			if ((bool)value)
 				return parameter;
 			return Binding.DoNothing;
+		}
+
+		public override object ProvideValue(IServiceProvider serviceProvider)
+		{
+			return this;
 		}
 	}
 }

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -55,7 +55,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		public override object Icon => Images.Resource;
 
-		public override FilterResult Filter(FilterSettings settings)
+		public override FilterResult Filter(LanguageSettings settings)
 		{
 			if (settings.ShowApiLevel == ApiVisibility.PublicOnly && (Resource.Attributes & ManifestResourceAttributes.VisibilityMask) == ManifestResourceAttributes.Private)
 				return FilterResult.Hidden;
@@ -74,7 +74,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 			ISmartTextOutput smartOutput = output as ISmartTextOutput;
 			if (smartOutput != null)
 			{
-				smartOutput.AddButton(Images.Save, Resources.Save, delegate { Save(Docking.DockWorkspace.Instance.ActiveTabPage); });
+				smartOutput.AddButton(Images.Save, Resources.Save, delegate { Save(DockWorkspace.ActiveTabPage); });
 				output.WriteLine();
 			}
 		}

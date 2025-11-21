@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2020 Siegfried Pammer
+// Copyright (c) 2020 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -52,7 +52,9 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 
 		protected internal override bool DoMatch(AstNode other, Match match)
 		{
-			return other is DeclarationExpression o && Designation.DoMatch(o.Designation, match);
+			return other is DeclarationExpression o
+				&& Type.DoMatch(o.Type, match)
+				&& Designation.DoMatch(o.Designation, match);
 		}
 	}
 }

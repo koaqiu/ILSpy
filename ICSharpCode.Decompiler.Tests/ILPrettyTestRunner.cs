@@ -1,14 +1,14 @@
-﻿// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
-// 
+// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -45,8 +45,8 @@ namespace ICSharpCode.Decompiler.Tests
 				if (file.Extension.Equals(".il", StringComparison.OrdinalIgnoreCase))
 				{
 					var testName = file.Name.Split('.')[0];
-					Assert.Contains(testName, testNames);
-					Assert.IsTrue(File.Exists(Path.Combine(TestCasePath, testName + ".cs")));
+					Assert.That(testNames, Has.Member(testName));
+					Assert.That(File.Exists(Path.Combine(TestCasePath, testName + ".cs")));
 				}
 			}
 		}
@@ -208,6 +208,54 @@ namespace ICSharpCode.Decompiler.Tests
 		}
 
 		[Test]
+		public async Task Issue3344CkFinite()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task Issue3421()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task Issue3442()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task Issue3465()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task Issue3466()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task Issue3504()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task Issue3524()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task Issue3552()
+		{
+			await Run();
+		}
+
+		[Test]
 		public async Task Issue2260SwitchString()
 		{
 			await Run();
@@ -263,6 +311,34 @@ namespace ICSharpCode.Decompiler.Tests
 			await Run();
 		}
 
+		[Test]
+		public async Task EmptyBodies()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task MonoFixed()
+		{
+			await Run();
+		}
+
+		[Test]
+		public async Task ExtensionEncodingV1()
+		{
+			// uses Microsoft.Net.Compilers.Toolset 5.0.0-2.25380.108
+			// see ExtensionEncodingV1.il for details
+			await Run();
+		}
+
+		[Test]
+		public async Task ExtensionEncodingV2()
+		{
+			// uses Microsoft.Net.Compilers.Toolset 5.0.0-2.25451.107
+			// see ExtensionEncodingV2.il for details
+			await Run();
+		}
+
 		async Task Run([CallerMemberName] string testName = null, DecompilerSettings settings = null,
 			AssemblerOptions assemblerOptions = AssemblerOptions.Library)
 		{
@@ -277,7 +353,7 @@ namespace ICSharpCode.Decompiler.Tests
 			var executable = await Tester.AssembleIL(ilFile, assemblerOptions).ConfigureAwait(false);
 			var decompiled = await Tester.DecompileCSharp(executable, settings).ConfigureAwait(false);
 
-			CodeAssert.FilesAreEqual(csFile, decompiled);
+			CodeAssert.FilesAreEqual(csFile, decompiled, ["EXPECTED_OUTPUT"]);
 			Tester.RepeatOnIOError(() => File.Delete(decompiled));
 		}
 

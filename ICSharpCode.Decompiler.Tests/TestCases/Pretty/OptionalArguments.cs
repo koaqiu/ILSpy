@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Siegfried Pammer
+// Copyright (c) 2018 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -16,17 +16,43 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 {
 	internal class OptionalArguments : List<int>
 	{
+		public delegate int D(int p = 10);
+
 		public enum MyEnum
 		{
 			A,
 			B
+		}
+
+		internal class OptionalArgumentTest
+		{
+			private static void Test()
+			{
+				Test2();
+				Test3();
+				Test4();
+			}
+
+			private static void Test2(int a = 0)
+			{
+			}
+
+			private static void Test3(int a = 0, int? b = null)
+			{
+			}
+
+			private static void Test4(int? b = null, int a = 0)
+			{
+			}
 		}
 
 		public OptionalArguments(string name, int a = 5)
@@ -223,6 +249,85 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		public static void Definition_NullableNInt(nint? p = 100)
 		{
 
+		}
+#endif
+
+		public static void Issue2920a(int x)
+		{
+		}
+		public static void Issue2920b([DefaultParameterValue(3)] int x)
+		{
+		}
+		public static void Issue2920c(ref int x)
+		{
+		}
+		public static void Issue2920d([DefaultParameterValue(3)] ref int x)
+		{
+		}
+		public static void Issue2920e(out int x)
+		{
+			x = 0;
+		}
+		public static void Issue2920f([DefaultParameterValue(3)] out int x)
+		{
+			x = 0;
+		}
+#if CS70
+		public static void Issue2920g(in int x)
+		{
+		}
+		public static void Issue2920h([DefaultParameterValue(3)] in int x)
+		{
+		}
+#endif
+		public static void Issue2920i([Optional] int x)
+		{
+		}
+		public static void Issue2920j(int x = 3)
+		{
+		}
+		public static void Issue2920k([Optional] ref int x)
+		{
+		}
+		public static void Issue2920l([Optional][DefaultParameterValue(3)] ref int x)
+		{
+		}
+		public static void Issue2920m([Optional] out int x)
+		{
+			x = 0;
+		}
+		public static void Issue2920n([Optional][DefaultParameterValue(3)] out int x)
+		{
+			x = 0;
+		}
+#if CS70
+		public static void Issue2920o([Optional] in int x)
+		{
+		}
+		public static void Issue2920p(in int x = 3)
+		{
+		}
+#endif
+		public static void Issue3469a([Optional][DefaultParameterValue(0)] int i, [Optional] DateTime d)
+		{
+		}
+#if CS120
+		public static Action<int, DateTime> Issue3469b()
+		{
+#pragma warning disable CS9099 // Parameter 1 has default value 'default(int)' in lambda but '<missing>' in the target delegate type
+			return ([Optional][DefaultParameterValue(0)] int i, [Optional] DateTime d) => {
+			};
+#pragma warning restore CS9099
+		}
+		public static D LambdaWithOptionalParameter()
+		{
+			return (int x = 10) => x;
+		}
+
+		public static void Use(D d)
+		{
+			d();
+			d(42);
 		}
 #endif
 	}

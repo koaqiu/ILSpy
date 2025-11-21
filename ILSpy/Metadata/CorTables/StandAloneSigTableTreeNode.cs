@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -20,61 +20,31 @@ using System.Collections.Generic;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
-using ICSharpCode.Decompiler;
-using ICSharpCode.Decompiler.Disassembler;
-using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.Metadata;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
-	class StandAloneSigTableTreeNode : MetadataTableTreeNode
+	class StandAloneSigTableTreeNode : MetadataTableTreeNode<StandAloneSigTableTreeNode.StandAloneSigEntry>
 	{
-		public StandAloneSigTableTreeNode(PEFile module)
-			: base(HandleKind.StandaloneSignature, module)
+		public StandAloneSigTableTreeNode(MetadataFile metadataFile)
+			: base(TableIndex.StandAloneSig, metadataFile)
 		{
 		}
 
-		public override object Text => $"11 StandAloneSig ({module.Metadata.GetTableRowCount(TableIndex.StandAloneSig)})";
-
-		public override object Icon => Images.Literal;
-
-		public override bool View(ViewModels.TabPageModel tabPage)
+		protected override IReadOnlyList<StandAloneSigEntry> LoadTable()
 		{
-			tabPage.Title = Text.ToString();
-			tabPage.SupportsLanguageSwitching = false;
-
-			var view = Helpers.PrepareDataGrid(tabPage, this);
-
 			var list = new List<StandAloneSigEntry>();
-			StandAloneSigEntry scrollTargetEntry = default;
-
-			for (int row = 1; row <= module.Metadata.GetTableRowCount(TableIndex.StandAloneSig); row++)
+			for (int row = 1; row <= metadataFile.Metadata.GetTableRowCount(TableIndex.StandAloneSig); row++)
 			{
-				StandAloneSigEntry entry = new StandAloneSigEntry(module, MetadataTokens.StandaloneSignatureHandle(row));
-				if (entry.RID == this.scrollTarget)
-				{
-					scrollTargetEntry = entry;
-				}
-				list.Add(entry);
+				list.Add(new StandAloneSigEntry(metadataFile, MetadataTokens.StandaloneSignatureHandle(row)));
 			}
 
-			view.ItemsSource = list;
-
-			tabPage.Content = view;
-
-			if (scrollTargetEntry.RID > 0)
-			{
-				ScrollItemIntoView(view, scrollTargetEntry);
-			}
-
-			return true;
+			return list;
 		}
 
-		struct StandAloneSigEntry
+		internal struct StandAloneSigEntry
 		{
-			readonly int metadataOffset;
-			readonly PEFile module;
-			readonly MetadataReader metadata;
+			readonly MetadataFile metadataFile;
 			readonly StandaloneSignatureHandle handle;
 			readonly StandaloneSignature standaloneSig;
 
@@ -82,35 +52,23 @@ namespace ICSharpCode.ILSpy.Metadata
 
 			public int Token => MetadataTokens.GetToken(handle);
 
-			public int Offset => metadataOffset
-				+ metadata.GetTableMetadataOffset(TableIndex.StandAloneSig)
-				+ metadata.GetTableRowSize(TableIndex.StandAloneSig) * (RID - 1);
+			public int Offset => metadataFile.MetadataOffset
+				+ metadataFile.Metadata.GetTableMetadataOffset(TableIndex.StandAloneSig)
+				+ metadataFile.Metadata.GetTableRowSize(TableIndex.StandAloneSig) * (RID - 1);
 
-			[StringFormat("X")]
+			[ColumnInfo("X8", Kind = ColumnKind.HeapOffset)]
 			public int Signature => MetadataTokens.GetHeapOffset(standaloneSig.Signature);
 
-			public string SignatureTooltip {
-				get {
-					ITextOutput output = new PlainTextOutput();
-					var context = new Decompiler.Metadata.MetadataGenericContext(default(TypeDefinitionHandle), module);
-					((EntityHandle)handle).WriteTo(module, output, context);
-					return output.ToString();
-				}
-			}
+			string signatureTooltip;
+			public string SignatureTooltip => GenerateTooltip(ref signatureTooltip, metadataFile, handle);
 
-			public StandAloneSigEntry(PEFile module, StandaloneSignatureHandle handle)
+			public StandAloneSigEntry(MetadataFile metadataFile, StandaloneSignatureHandle handle)
 			{
-				this.metadataOffset = module.Reader.PEHeaders.MetadataStartOffset;
-				this.module = module;
-				this.metadata = module.Metadata;
+				this.metadataFile = metadataFile;
 				this.handle = handle;
-				this.standaloneSig = metadata.GetStandaloneSignature(handle);
+				this.standaloneSig = metadataFile.Metadata.GetStandaloneSignature(handle);
+				this.signatureTooltip = null;
 			}
-		}
-
-		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-		{
-			language.WriteCommentLine(output, "StandAloneSigs");
 		}
 	}
 }

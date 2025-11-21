@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -21,62 +21,31 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
-using ICSharpCode.Decompiler;
-using ICSharpCode.Decompiler.Disassembler;
-using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.Metadata;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
-	class ManifestResourceTableTreeNode : MetadataTableTreeNode
+	class ManifestResourceTableTreeNode : MetadataTableTreeNode<ManifestResourceTableTreeNode.ManifestResourceEntry>
 	{
-		public ManifestResourceTableTreeNode(PEFile module)
-			: base(HandleKind.ManifestResource, module)
+		public ManifestResourceTableTreeNode(MetadataFile metadataFile)
+			: base(TableIndex.ManifestResource, metadataFile)
 		{
 		}
 
-		public override object Text => $"28 ManifestResource ({module.Metadata.GetTableRowCount(TableIndex.ManifestResource)})";
-
-		public override object Icon => Images.Literal;
-
-		public override bool View(ViewModels.TabPageModel tabPage)
+		protected override IReadOnlyList<ManifestResourceEntry> LoadTable()
 		{
-			tabPage.Title = Text.ToString();
-			tabPage.SupportsLanguageSwitching = false;
-
-			var view = Helpers.PrepareDataGrid(tabPage, this);
-			var metadata = module.Metadata;
-
 			var list = new List<ManifestResourceEntry>();
-			ManifestResourceEntry scrollTargetEntry = default;
-
+			var metadata = metadataFile.Metadata;
 			foreach (var row in metadata.ManifestResources)
 			{
-				ManifestResourceEntry entry = new ManifestResourceEntry(module, row);
-				if (entry.RID == this.scrollTarget)
-				{
-					scrollTargetEntry = entry;
-				}
-				list.Add(entry);
+				list.Add(new ManifestResourceEntry(metadataFile, row));
 			}
-
-			view.ItemsSource = list;
-
-			tabPage.Content = view;
-
-			if (scrollTargetEntry.RID > 0)
-			{
-				ScrollItemIntoView(view, scrollTargetEntry);
-			}
-
-			return true;
+			return list;
 		}
 
-		struct ManifestResourceEntry
+		internal struct ManifestResourceEntry
 		{
-			readonly int metadataOffset;
-			readonly PEFile module;
-			readonly MetadataReader metadata;
+			readonly MetadataFile metadataFile;
 			readonly ManifestResourceHandle handle;
 			readonly ManifestResource manifestResource;
 
@@ -84,52 +53,37 @@ namespace ICSharpCode.ILSpy.Metadata
 
 			public int Token => MetadataTokens.GetToken(handle);
 
-			public int Offset => metadataOffset
-				+ metadata.GetTableMetadataOffset(TableIndex.ManifestResource)
-				+ metadata.GetTableRowSize(TableIndex.ManifestResource) * (RID - 1);
+			public int Offset => metadataFile.MetadataOffset
+				+ metadataFile.Metadata.GetTableMetadataOffset(TableIndex.ManifestResource)
+				+ metadataFile.Metadata.GetTableRowSize(TableIndex.ManifestResource) * (RID - 1);
 
-			[StringFormat("X8")]
+			[ColumnInfo("X8", Kind = ColumnKind.Other)]
 			public ManifestResourceAttributes Attributes => manifestResource.Attributes;
 
 			public object AttributesTooltip => manifestResource.Attributes.ToString();
 
-			public string Name => metadata.GetString(manifestResource.Name);
+			public string Name => metadataFile.Metadata.GetString(manifestResource.Name);
 
 			public string NameTooltip => $"{MetadataTokens.GetHeapOffset(manifestResource.Name):X} \"{Name}\"";
 
-			[StringFormat("X8")]
-			[LinkToTable]
+			[ColumnInfo("X8", Kind = ColumnKind.Token)]
 			public int Implementation => MetadataTokens.GetToken(manifestResource.Implementation);
 
 			public void OnImplementationClick()
 			{
-				MainWindow.Instance.JumpToReference(new EntityReference(module, manifestResource.Implementation, protocol: "metadata"));
+				MessageBus.Send(this, new NavigateToReferenceEventArgs(new EntityReference(metadataFile, manifestResource.Implementation, protocol: "metadata")));
 			}
 
-			public string ImplementationTooltip {
-				get {
-					if (manifestResource.Implementation.IsNil)
-						return null;
-					ITextOutput output = new PlainTextOutput();
-					var context = new MetadataGenericContext(default(TypeDefinitionHandle), module);
-					manifestResource.Implementation.WriteTo(module, output, context);
-					return output.ToString();
-				}
-			}
+			string implementationTooltip;
+			public string ImplementationTooltip => GenerateTooltip(ref implementationTooltip, metadataFile, manifestResource.Implementation);
 
-			public ManifestResourceEntry(PEFile module, ManifestResourceHandle handle)
+			public ManifestResourceEntry(MetadataFile metadataFile, ManifestResourceHandle handle)
 			{
-				this.metadataOffset = module.Reader.PEHeaders.MetadataStartOffset;
-				this.module = module;
-				this.metadata = module.Metadata;
+				this.metadataFile = metadataFile;
 				this.handle = handle;
-				this.manifestResource = metadata.GetManifestResource(handle);
+				this.manifestResource = metadataFile.Metadata.GetManifestResource(handle);
+				this.implementationTooltip = null;
 			}
-		}
-
-		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-		{
-			language.WriteCommentLine(output, "ManifestResources");
 		}
 	}
 }

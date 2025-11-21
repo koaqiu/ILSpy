@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -22,12 +22,12 @@ using System.Linq;
 
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.OutputVisitor;
-using ICSharpCode.Decompiler.CSharp.Resolver;
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.Semantics;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.TypeSystem.Implementation;
+using ICSharpCode.Decompiler.Util;
 
 namespace ICSharpCode.Decompiler
 {
@@ -118,7 +118,9 @@ namespace ICSharpCode.Decompiler
 			}
 			if (symbol != null && node.Role == Roles.Type && node.Parent is ObjectCreateExpression)
 			{
-				symbol = node.Parent.GetSymbol();
+				var ctorSymbol = node.Parent.GetSymbol();
+				if (ctorSymbol != null)
+					symbol = ctorSymbol;
 			}
 
 			if (node is IdentifierExpression && node.Role == Roles.TargetExpression && node.Parent is InvocationExpression && symbol is IMember member)
@@ -253,7 +255,7 @@ namespace ICSharpCode.Decompiler
 					}
 					if (braceLevelWithinType >= 0 || nodeStack.Peek() is TypeDeclaration)
 						braceLevelWithinType++;
-					if (nodeStack.OfType<BlockStatement>().Count() <= 1 || settings.FoldBraces)
+					if (nodeStack.PeekOrDefault() is TypeDeclaration or BlockStatement { Parent: EntityDeclaration or LocalFunctionDeclarationStatement or AnonymousMethodExpression or LambdaExpression } || settings.FoldBraces)
 					{
 						output.MarkFoldStart(defaultCollapsed: !settings.ExpandMemberDefinitions && braceLevelWithinType == 1, isDefinition: braceLevelWithinType == 1);
 					}
@@ -263,7 +265,7 @@ namespace ICSharpCode.Decompiler
 					output.Write('}');
 					if (role != Roles.RBrace)
 						break;
-					if (nodeStack.OfType<BlockStatement>().Count() <= 1 || settings.FoldBraces)
+					if (nodeStack.PeekOrDefault() is TypeDeclaration or BlockStatement { Parent: EntityDeclaration or LocalFunctionDeclarationStatement or AnonymousMethodExpression or LambdaExpression } || settings.FoldBraces)
 						output.MarkFoldEnd();
 					if (braceLevelWithinType >= 0)
 						braceLevelWithinType--;
@@ -457,7 +459,7 @@ namespace ICSharpCode.Decompiler
 		{
 			if (node is EntityDeclaration && !(node.Parent is LocalFunctionDeclarationStatement))
 				return true;
-			if (node is VariableInitializer && node.Parent is FieldDeclaration)
+			if (node is VariableInitializer && node.Parent is FieldDeclaration or EventDeclaration)
 			{
 				node = node.Parent;
 				return true;

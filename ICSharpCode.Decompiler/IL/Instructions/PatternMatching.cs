@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 // Copyright (c) 2014 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
@@ -580,6 +580,18 @@ namespace ICSharpCode.Decompiler.IL
 		public virtual ILInstruction UnwrapConv(ConversionKind kind)
 		{
 			return this;
+		}
+
+		public bool MatchLdObj([NotNullWhen(true)] out ILInstruction? target, IType type)
+		{
+			var inst = this as LdObj;
+			if (inst != null && inst.Type.Equals(type))
+			{
+				target = inst.Target;
+				return true;
+			}
+			target = default(ILInstruction);
+			return false;
 		}
 	}
 }

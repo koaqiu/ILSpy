@@ -1,4 +1,4 @@
-﻿#pragma warning disable format
+#pragma warning disable format
 // Copyright (c) AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
@@ -223,15 +223,15 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		private dynamic ViewBag;
 
 		public static readonly object[] SupportedMethods = new object[2] {
-			ToCode(null, () => ((IQueryable<object>)null).Aggregate((object o1, object o2) => null)),
-			ToCode(null, () => ((IEnumerable<object>)null).Aggregate((object o1, object o2) => null))
+			ToCode(null, () => ((IQueryable<object>)null).Aggregate((object o1, object o2) => (object)null)),
+			ToCode(null, () => ((IEnumerable<object>)null).Aggregate((object o1, object o2) => (object)null))
 		};
 
 		public static readonly object[] SupportedMethods2 = new object[4] {
-			ToCode(null, () => ((IQueryable<object>)null).Aggregate(null, (object o1, object o2) => null)),
-			ToCode(null, () => ((IQueryable<object>)null).Aggregate((object)null, (Expression<Func<object, object, object>>)((object o1, object o2) => null), (Expression<Func<object, object>>)((object o) => null))),
-			ToCode(null, () => ((IEnumerable<object>)null).Aggregate(null, (object o1, object o2) => null)),
-			ToCode(null, () => ((IEnumerable<object>)null).Aggregate((object)null, (Func<object, object, object>)((object o1, object o2) => null), (Func<object, object>)((object o) => null)))
+			ToCode(null, () => ((IQueryable<object>)null).Aggregate(null, (object o1, object o2) => (object)null)),
+			ToCode(null, () => ((IQueryable<object>)null).Aggregate(null, (object o1, object o2) => (object)null, (object o) => (object)null)),
+			ToCode(null, () => ((IEnumerable<object>)null).Aggregate(null, (object o1, object o2) => (object)null)),
+			ToCode(null, () => ((IEnumerable<object>)null).Aggregate(null, (object o1, object o2) => (object)null, (object o) => (object)null))
 		};
 
 		public static void TestCall(object a)

@@ -1,8 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>ILSpy.BamlDecompiler.Plugin</AssemblyName>
-    <TargetFramework>net6.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <IsPackable>false</IsPackable>
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
@@ -26,21 +26,10 @@
     <OutputPath>..\ILSpy\bin\$(Configuration)\</OutputPath>
   </PropertyGroup>
 
-  <Import Project="..\packages.props" />
-
   <ItemGroup>
-    <Compile Remove="Baml\KnownThings.gen.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="AvalonEdit" Version="$(AvalonEditVersion)" />
-    <PackageReference Include="System.Composition" Version="$(SystemCompositionVersion)" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <ProjectReference Include="..\ICSharpCode.BamlDecompiler\ICSharpCode.BamlDecompiler.csproj" />
     <ProjectReference Include="..\ILSpy\ILSpy.csproj" />
     <ProjectReference Include="..\ICSharpCode.Decompiler\ICSharpCode.Decompiler.csproj" />
-    <ProjectReference Include="..\SharpTreeView\ICSharpCode.TreeView.csproj" />
   </ItemGroup>
 
 </Project>

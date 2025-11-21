@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -16,6 +16,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Composition;
 using System.Linq;
 
 using ICSharpCode.AvalonEdit;
@@ -25,6 +26,7 @@ using ICSharpCode.ILSpy.Properties;
 namespace ICSharpCode.ILSpy.TextView
 {
 	[ExportContextMenuEntryAttribute(Header = nameof(Resources.ToggleFolding), Category = nameof(Resources.Folding))]
+	[Shared]
 	internal sealed class ToggleAllContextMenuEntry : IContextMenuEntry
 	{
 		public bool IsVisible(TextViewContext context)
@@ -61,6 +63,7 @@ namespace ICSharpCode.ILSpy.TextView
 	}
 
 	[ExportContextMenuEntryAttribute(Header = nameof(Resources._ToggleFolding), Category = nameof(Resources.Folding))]
+	[Shared]
 	internal sealed class ToggleContextMenuEntry : IContextMenuEntry
 	{
 		public bool IsVisible(TextViewContext context)

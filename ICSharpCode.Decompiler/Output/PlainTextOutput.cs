@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -123,7 +123,7 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
-		public void WriteReference(PEFile module, Handle handle, string text, string protocol = "decompile", bool isDefinition = false)
+		public void WriteReference(MetadataFile module, Handle handle, string text, string protocol = "decompile", bool isDefinition = false)
 		{
 			Write(text);
 		}
@@ -225,7 +225,7 @@ namespace ICSharpCode.Decompiler
 			actions.Add(target => target.WriteReference(opCode));
 		}
 
-		public void WriteReference(PEFile module, Handle handle, string text, string protocol = "decompile", bool isDefinition = false)
+		public void WriteReference(MetadataFile module, Handle handle, string text, string protocol = "decompile", bool isDefinition = false)
 		{
 			actions.Add(target => target.WriteReference(module, handle, text, protocol, isDefinition));
 		}

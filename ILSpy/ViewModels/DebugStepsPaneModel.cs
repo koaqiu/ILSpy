@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2019 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -16,23 +16,23 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Composition;
 using System.Windows;
 
 namespace ICSharpCode.ILSpy.ViewModels
 {
 #if DEBUG
-	[ExportToolPane(ContentId = PaneContentId)]
+	[ExportToolPane]
+	[Shared]
 #endif
 	public class DebugStepsPaneModel : ToolPaneModel
 	{
 		public const string PaneContentId = "debugStepsPane";
 
-		private DebugStepsPaneModel()
+		public DebugStepsPaneModel()
 		{
 			ContentId = PaneContentId;
 			Title = Properties.Resources.DebugSteps;
 		}
-
-		public override DataTemplate Template => (DataTemplate)MainWindow.Instance.FindResource("DebugStepsPaneTemplate");
 	}
 }

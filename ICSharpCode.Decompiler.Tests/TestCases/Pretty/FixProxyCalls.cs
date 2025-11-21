@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -120,7 +120,7 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.ILPretty
 		public Action<object> M(object state)
 		{
 			return delegate (object x) {
-				base.BaseCall(x, state, (Func<object>)(() => null));
+				base.BaseCall(x, state, () => (object)null);
 			};
 		}
 	}

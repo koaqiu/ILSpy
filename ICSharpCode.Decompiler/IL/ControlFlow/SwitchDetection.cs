@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2016 Daniel Grunwald
+// Copyright (c) 2016 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -16,12 +16,10 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
-using ICSharpCode.Decompiler.CSharp.Transforms;
 using ICSharpCode.Decompiler.FlowAnalysis;
 using ICSharpCode.Decompiler.IL.Transforms;
 using ICSharpCode.Decompiler.TypeSystem;
@@ -361,7 +359,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 		private bool MatchRoslynSwitchOnString()
 		{
 			var insns = analysis.RootBlock.Instructions;
-			return insns.Count >= 3 && SwitchOnStringTransform.MatchComputeStringHashCall(insns[insns.Count - 3], analysis.SwitchVariable, out var switchLdLoc);
+			return insns.Count >= 3 && SwitchOnStringTransform.MatchComputeStringOrReadOnlySpanHashCall(insns[insns.Count - 3], analysis.SwitchVariable, out _);
 		}
 
 		/// <summary>

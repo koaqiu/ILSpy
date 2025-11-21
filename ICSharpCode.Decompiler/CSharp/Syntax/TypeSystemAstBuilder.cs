@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -70,6 +70,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			this.UseKeywordsForBuiltinTypes = true;
 			this.UseNullableSpecifierForValueTypes = true;
 			this.ShowAccessibility = true;
+			this.UsePrivateProtectedAccessibility = true;
 			this.ShowModifiers = true;
 			this.ShowBaseTypes = true;
 			this.ShowTypeParameters = true;
@@ -93,13 +94,19 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		public bool AddResolveResultAnnotations { get; set; }
 
 		/// <summary>
-		/// Controls the accessibility modifiers are shown.
+		/// Controls whether accessibility modifiers are shown.
 		/// The default value is <see langword="true" />.
 		/// </summary>
 		public bool ShowAccessibility { get; set; }
 
 		/// <summary>
-		/// Controls the non-accessibility modifiers are shown.
+		/// Controls whether "private protected" accessibility modifiers are shown.
+		/// The default value is <see langword="true" />.
+		/// </summary>
+		public bool UsePrivateProtectedAccessibility { get; set; }
+
+		/// <summary>
+		/// Controls whether non-accessibility modifiers are shown.
 		/// The default value is <see langword="true" />.
 		/// </summary>
 		public bool ShowModifiers { get; set; }
@@ -146,6 +153,12 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		/// The default value is <see langword="false" />.
 		/// </summary>
 		public bool ShowAttributes { get; set; }
+
+		/// <summary>
+		/// Controls whether to sort attributes, if set to <see langword="false" /> attributes are shown in metadata order.
+		/// The default value is <see langword="false" />.
+		/// </summary>
+		public bool SortAttributes { get; set; }
 
 		/// <summary>
 		/// Controls whether to use fully-qualified type names or short type names.
@@ -224,6 +237,16 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		/// Controls whether C# 10 "record" struct types are supported.
 		/// </summary>
 		public bool SupportRecordStructs { get; set; }
+
+		/// <summary>
+		/// Controls whether C# 11 "operator >>>" is supported.
+		/// </summary>
+		public bool SupportUnsignedRightShift { get; set; }
+
+		/// <summary>
+		/// Controls whether C# 11 "operator checked" is supported.
+		/// </summary>
+		public bool SupportOperatorChecked { get; set; }
 
 		/// <summary>
 		/// Controls whether all fully qualified type names should be prefixed with "global::".
@@ -362,14 +385,9 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				for (int i = 0; i < fpt.ParameterTypes.Length; i++)
 				{
 					var paramDecl = new ParameterDeclaration();
-					paramDecl.ParameterModifier = fpt.ParameterReferenceKinds[i] switch {
-						ReferenceKind.In => ParameterModifier.In,
-						ReferenceKind.Ref => ParameterModifier.Ref,
-						ReferenceKind.Out => ParameterModifier.Out,
-						_ => ParameterModifier.None,
-					};
+					paramDecl.ParameterModifier = fpt.ParameterReferenceKinds[i];
 					IType parameterType = fpt.ParameterTypes[i];
-					if (paramDecl.ParameterModifier != ParameterModifier.None && parameterType is ByReferenceType brt)
+					if (paramDecl.ParameterModifier != ReferenceKind.None && parameterType is ByReferenceType brt)
 					{
 						paramDecl.Type = ConvertType(brt.ElementType);
 					}
@@ -477,7 +495,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				// Look if there's an alias to the target type
 				if (UseAliases)
 				{
-					for (ResolvedUsingScope usingScope = resolver.CurrentUsingScope; usingScope != null; usingScope = usingScope.Parent)
+					for (UsingScope usingScope = resolver.CurrentUsingScope; usingScope != null; usingScope = usingScope.Parent)
 					{
 						foreach (var pair in usingScope.UsingAliases)
 						{
@@ -528,6 +546,13 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			{
 				// Handle nested types
 				result.Target = ConvertTypeHelper(genericType.DeclaringType, typeArguments);
+				// Use correct number of type arguments on the declaring type
+				var declaringType = genericType.DeclaringType;
+				if (outerTypeParameterCount > 0)
+				{
+					declaringType = new ParameterizedType(genericType.DeclaringType, typeArguments.Take(outerTypeParameterCount));
+				}
+				AddTypeAnnotation(result.Target, declaringType);
 			}
 			else
 			{
@@ -624,7 +649,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				// Look if there's an alias to the target namespace
 				if (UseAliases)
 				{
-					for (ResolvedUsingScope usingScope = resolver.CurrentUsingScope; usingScope != null; usingScope = usingScope.Parent)
+					for (UsingScope usingScope = resolver.CurrentUsingScope; usingScope != null; usingScope = usingScope.Parent)
 					{
 						foreach (var pair in usingScope.UsingAliases)
 						{
@@ -787,16 +812,72 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			return attr;
 		}
 
-		private IEnumerable<AttributeSection> ConvertAttributes(IEnumerable<IAttribute> attributes)
+		private IEnumerable<AttributeSection> ConvertAttributes(IEnumerable<IAttribute> attributes, string target = null)
 		{
-			return attributes.Select(a => new AttributeSection(ConvertAttribute(a)));
-		}
-
-		private IEnumerable<AttributeSection> ConvertAttributes(IEnumerable<IAttribute> attributes, string target)
-		{
-			return attributes.Select(a => new AttributeSection(ConvertAttribute(a)) {
-				AttributeTarget = target
+			if (SortAttributes)
+				attributes = attributes.OrderBy(a => a, new DelegateComparer<IAttribute>(CompareAttribute));
+			return attributes.Select(a => {
+				var section = new AttributeSection(ConvertAttribute(a));
+				if (target != null)
+					section.AttributeTarget = target;
+				return section;
 			});
+
+			static int CompareAttribute(IAttribute a, IAttribute b)
+			{
+				int result = CompareType(a.AttributeType, b.AttributeType);
+				if (result != 0)
+					return result;
+				if (a.HasDecodeErrors && b.HasDecodeErrors)
+					return 0;
+				if (a.HasDecodeErrors)
+					return -1;
+				if (b.HasDecodeErrors)
+					return 1;
+				result = a.FixedArguments.Length - b.FixedArguments.Length;
+				if (result != 0)
+					return result;
+				for (int i = 0; i < a.FixedArguments.Length; i++)
+				{
+					var argA = a.FixedArguments[i];
+					var argB = b.FixedArguments[i];
+					result = CompareType(argA.Type, argB.Type);
+					if (result != 0)
+						return result;
+					if (argA.Value is IComparable compA && argB.Value is IComparable compB)
+						result = compA.CompareTo(compB);
+					else
+						result = 0;
+					if (result != 0)
+						return result;
+				}
+				result = a.NamedArguments.Length - b.NamedArguments.Length;
+				if (result != 0)
+					return result;
+				for (int i = 0; i < a.NamedArguments.Length; i++)
+				{
+					var argA = a.NamedArguments[i];
+					var argB = b.NamedArguments[i];
+					result = argA.Name.CompareTo(argB.Name);
+					if (result != 0)
+						return result;
+					result = CompareType(argA.Type, argB.Type);
+					if (result != 0)
+						return result;
+					if (argA.Value is IComparable compA && argB.Value is IComparable compB)
+						result = compA.CompareTo(compB);
+					else
+						result = 0;
+					if (result != 0)
+						return result;
+				}
+				return 0;
+			}
+
+			static int CompareType(IType a, IType b)
+			{
+				return a.FullName.CompareTo(b.FullName);
+			}
 		}
 		#endregion
 
@@ -1066,7 +1147,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 					expr = new PrimitiveExpression(constantValue, format);
 					if (AddResolveResultAnnotations && literalType != null)
 						expr.AddAnnotation(new ConstantResolveResult(literalType, constantValue));
-					if (integerTypeMismatch && !type.Equals(expectedType))
+					if (integerTypeMismatch && !type.Equals(expectedType) || underlyingType.Kind == TypeKind.Unknown)
 					{
 						expr = new CastExpression(ConvertType(type), expr);
 					}
@@ -1638,24 +1719,9 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			if (parameter == null)
 				throw new ArgumentNullException(nameof(parameter));
 			ParameterDeclaration decl = new ParameterDeclaration();
-			if (parameter.IsRef)
-			{
-				decl.ParameterModifier = ParameterModifier.Ref;
-			}
-			else if (parameter.IsOut)
-			{
-				decl.ParameterModifier = ParameterModifier.Out;
-			}
-			else if (parameter.IsIn)
-			{
-				decl.ParameterModifier = ParameterModifier.In;
-			}
-			else if (parameter.IsParams)
-			{
-				decl.ParameterModifier = ParameterModifier.Params;
-			}
-			decl.IsRefScoped = parameter.Lifetime.RefScoped;
-			decl.IsValueScoped = parameter.Lifetime.ValueScoped;
+			decl.ParameterModifier = parameter.ReferenceKind;
+			decl.IsParams = parameter.IsParams;
+			decl.IsScopedRef = parameter.Lifetime.ScopedRef;
 			if (ShowAttributes)
 			{
 				decl.Attributes.AddRange(ConvertAttributes(parameter.GetAttributes()));
@@ -1675,7 +1741,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			{
 				decl.Name = parameter.Name;
 			}
-			if (parameter.IsOptional && parameter.HasConstantValueInSignature && this.ShowConstantValues)
+			if (parameter.IsDefaultValueAssignmentAllowed() && this.ShowConstantValues)
 			{
 				try
 				{
@@ -1751,7 +1817,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			Modifiers modifiers = Modifiers.None;
 			if (this.ShowAccessibility)
 			{
-				modifiers |= ModifierFromAccessibility(typeDefinition.Accessibility);
+				modifiers |= ModifierFromAccessibility(typeDefinition.Accessibility, UsePrivateProtectedAccessibility);
 			}
 			if (this.ShowModifiers)
 			{
@@ -1970,6 +2036,10 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				decl.AddAnnotation(new MemberResolveResult(null, field));
 			}
 			decl.ReturnType = ConvertType(field.ReturnType);
+			if (decl.ReturnType is ComposedType ct && ct.HasRefSpecifier && field.ReturnTypeIsRefReadOnly)
+			{
+				ct.HasReadOnlySpecifier = true;
+			}
 			Expression initializer = null;
 			if (field.IsConst && this.ShowConstantValues)
 			{
@@ -2015,7 +2085,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				}
 			}
 			if (this.ShowAccessibility && accessor.Accessibility != ownerAccessibility)
-				decl.Modifiers = ModifierFromAccessibility(accessor.Accessibility);
+				decl.Modifiers = ModifierFromAccessibility(accessor.Accessibility, UsePrivateProtectedAccessibility);
 			if (this.ShowModifiers && accessor.HasReadonlyModifier())
 				decl.Modifiers |= Modifiers.Readonly;
 			TokenRole keywordRole = kind switch {
@@ -2211,8 +2281,14 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 
 		EntityDeclaration ConvertOperator(IMethod op)
 		{
-			OperatorType? opType = OperatorDeclaration.GetOperatorType(op.Name);
+			int dot = op.Name.LastIndexOf('.');
+			string name = op.Name.Substring(dot + 1);
+			OperatorType? opType = OperatorDeclaration.GetOperatorType(name);
 			if (opType == null)
+				return ConvertMethod(op);
+			if (opType == OperatorType.UnsignedRightShift && !SupportUnsignedRightShift)
+				return ConvertMethod(op);
+			if (!SupportOperatorChecked && OperatorDeclaration.IsChecked(opType.Value))
 				return ConvertMethod(op);
 
 			OperatorDeclaration decl = new OperatorDeclaration();
@@ -2237,6 +2313,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				decl.AddAnnotation(new MemberResolveResult(null, op));
 			}
 			decl.Body = GenerateBodyBlock();
+			decl.PrivateImplementationType = GetExplicitInterfaceType(op);
 			return decl;
 		}
 
@@ -2277,7 +2354,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		#endregion
 
 		#region Convert Modifiers
-		public static Modifiers ModifierFromAccessibility(Accessibility accessibility)
+		public static Modifiers ModifierFromAccessibility(Accessibility accessibility, bool usePrivateProtected)
 		{
 			switch (accessibility)
 			{
@@ -2292,7 +2369,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				case Accessibility.ProtectedOrInternal:
 					return Modifiers.Protected | Modifiers.Internal;
 				case Accessibility.ProtectedAndInternal:
-					return Modifiers.Private | Modifiers.Protected;
+					return usePrivateProtected ? Modifiers.Private | Modifiers.Protected : Modifiers.Protected;
 				default:
 					return Modifiers.None;
 			}
@@ -2323,7 +2400,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			Modifiers m = Modifiers.None;
 			if (this.ShowAccessibility && NeedsAccessibility(member))
 			{
-				m |= ModifierFromAccessibility(member.Accessibility);
+				m |= ModifierFromAccessibility(member.Accessibility, UsePrivateProtectedAccessibility);
 			}
 			if (this.ShowModifiers)
 			{
@@ -2355,8 +2432,14 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 						{
 							m |= Modifiers.Sealed;
 						}
-						if (member.IsAbstract && member.IsStatic)
-							m |= Modifiers.Abstract;
+						if (member.IsStatic)
+						{
+							// modifiers of static members in interfaces:
+							if (member.IsAbstract)
+								m |= Modifiers.Abstract;
+							else if (member.IsVirtual && !member.IsOverride)
+								m |= Modifiers.Virtual;
+						}
 					}
 					else
 					{
@@ -2388,7 +2471,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 
 		internal Constraint ConvertTypeParameterConstraint(ITypeParameter tp)
 		{
-			if (!tp.HasDefaultConstructorConstraint && !tp.HasReferenceTypeConstraint && !tp.HasValueTypeConstraint && tp.NullabilityConstraint != Nullability.NotNullable && tp.DirectBaseTypes.All(IsObjectOrValueType))
+			if (!tp.HasDefaultConstructorConstraint && !tp.HasReferenceTypeConstraint && !tp.HasValueTypeConstraint && !tp.AllowsRefLikeType && tp.NullabilityConstraint != Nullability.NotNullable && tp.DirectBaseTypes.All(IsObjectOrValueType))
 			{
 				return null;
 			}
@@ -2440,6 +2523,10 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			if (tp.HasDefaultConstructorConstraint && !tp.HasValueTypeConstraint)
 			{
 				c.BaseTypes.Add(new PrimitiveType("new"));
+			}
+			if (tp.AllowsRefLikeType)
+			{
+				c.BaseTypes.Add(new PrimitiveType("allows ref struct"));
 			}
 			return c;
 		}

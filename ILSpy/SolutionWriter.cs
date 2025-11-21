@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -29,6 +29,7 @@ using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Solution;
 using ICSharpCode.Decompiler.Util;
 using ICSharpCode.ILSpy.TextView;
+using ICSharpCode.ILSpy.ViewModels;
 using ICSharpCode.ILSpyX;
 
 namespace ICSharpCode.ILSpy
@@ -45,15 +46,17 @@ namespace ICSharpCode.ILSpy
 		/// to the <paramref name="solutionFilePath"/>. The directory of this file must either
 		/// be empty or not exist.
 		/// </summary>
+		/// <param name="tabPage"></param>
 		/// <param name="textView">A reference to the <see cref="DecompilerTextView"/> instance.</param>
 		/// <param name="solutionFilePath">The target file path of the solution file.</param>
+		/// <param name="language"></param>
 		/// <param name="assemblies">The assembly nodes to decompile.</param>
-		/// 
 		/// <exception cref="ArgumentException">Thrown when <paramref name="solutionFilePath"/> is null,
 		/// an empty or a whitespace string.</exception>
 		/// <exception cref="ArgumentNullException">Thrown when <paramref name="textView"/>> or
 		/// <paramref name="assemblies"/> is null.</exception>
-		public static void CreateSolution(DecompilerTextView textView, string solutionFilePath, Language language, IEnumerable<LoadedAssembly> assemblies)
+		public static void CreateSolution(TabPageModel tabPage, DecompilerTextView textView, string solutionFilePath,
+			Language language, List<LoadedAssembly> assemblies)
 		{
 			if (textView == null)
 			{
@@ -73,8 +76,8 @@ namespace ICSharpCode.ILSpy
 			var writer = new SolutionWriter(solutionFilePath);
 
 			textView
-				.RunWithCancellation(ct => writer.CreateSolution(assemblies, language, ct))
-				.Then(output => textView.ShowText(output))
+				.RunWithCancellation(ct => writer.CreateSolution(tabPage, assemblies, language, ct))
+				.Then(textView.ShowText)
 				.HandleExceptions();
 		}
 
@@ -91,16 +94,33 @@ namespace ICSharpCode.ILSpy
 			projects = new ConcurrentBag<ProjectItem>();
 		}
 
-		async Task<AvalonEditTextOutput> CreateSolution(IEnumerable<LoadedAssembly> assemblies, Language language, CancellationToken ct)
+		async Task<AvalonEditTextOutput> CreateSolution(TabPageModel tabPage, List<LoadedAssembly> allAssemblies, Language language, CancellationToken ct)
 		{
 			var result = new AvalonEditTextOutput();
 
-			var duplicates = new HashSet<string>();
-			if (assemblies.Any(asm => !duplicates.Add(asm.ShortName)))
+			var assembliesByShortName = allAssemblies.GroupBy(_ => _.ShortName).ToDictionary(_ => _.Key, _ => _.ToList());
+			bool first = true;
+			bool abort = false;
+
+			foreach (var (shortName, assemblies) in assembliesByShortName)
 			{
-				result.WriteLine("Duplicate assembly names selected, cannot generate a solution.");
-				return result;
+				if (assemblies.Count == 1)
+				{
+					continue;
+				}
+
+				if (first)
+				{
+					result.WriteLine("Duplicate assembly names selected, cannot generate a solution:");
+					abort = true;
+					first = false;
+				}
+
+				result.WriteLine("- " + assemblies[0].Text + " conflicts with " + string.Join(", ", assemblies.Skip(1)));
 			}
+
+			if (abort)
+				return result;
 
 			Stopwatch stopwatch = Stopwatch.StartNew();
 
@@ -109,9 +129,9 @@ namespace ICSharpCode.ILSpy
 				// Explicitly create an enumerable partitioner here to avoid Parallel.ForEach's special cases for lists,
 				// as those seem to use static partitioning which is inefficient if assemblies take differently
 				// long to decompile.
-				await Task.Run(() => Parallel.ForEach(Partitioner.Create(assemblies),
+				await Task.Run(() => Parallel.ForEach(Partitioner.Create(allAssemblies),
 					new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
-					n => WriteProject(n, language, solutionDirectory, ct)))
+					item => WriteProject(tabPage, item, language, solutionDirectory, ct)))
 					.ConfigureAwait(false);
 
 				if (projects.Count == 0)
@@ -121,8 +141,8 @@ namespace ICSharpCode.ILSpy
 				}
 				else
 				{
-					await Task.Run(() => SolutionCreator.WriteSolutionFile(solutionFilePath, projects))
-						.ConfigureAwait(false);
+					await Task.Run(() => SolutionCreator.WriteSolutionFile(solutionFilePath, projects.ToList()), ct)
+							.ConfigureAwait(false);
 				}
 			}
 			catch (AggregateException ae)
@@ -152,14 +172,14 @@ namespace ICSharpCode.ILSpy
 			if (statusOutput.Count == 0)
 			{
 				result.WriteLine("Successfully decompiled the following assemblies into Visual Studio projects:");
-				foreach (var item in assemblies.Select(n => n.Text.ToString()))
+				foreach (var n in allAssemblies)
 				{
-					result.WriteLine(item);
+					result.WriteLine(n.Text.ToString());
 				}
 
 				result.WriteLine();
 
-				if (assemblies.Count() == projects.Count)
+				if (allAssemblies.Count == projects.Count)
 				{
 					result.WriteLine("Created the Visual Studio Solution file.");
 				}
@@ -173,7 +193,7 @@ namespace ICSharpCode.ILSpy
 			return result;
 		}
 
-		void WriteProject(LoadedAssembly loadedAssembly, Language language, string targetDirectory, CancellationToken ct)
+		void WriteProject(TabPageModel tabPage, LoadedAssembly loadedAssembly, Language language, string targetDirectory, CancellationToken ct)
 		{
 			targetDirectory = Path.Combine(targetDirectory, loadedAssembly.ShortName);
 
@@ -212,7 +232,7 @@ namespace ICSharpCode.ILSpy
 				using (var projectFileWriter = new StreamWriter(projectFileName))
 				{
 					var projectFileOutput = new PlainTextOutput(projectFileWriter);
-					var options = MainWindow.Instance.CreateDecompilationOptions();
+					var options = tabPage.CreateDecompilationOptions();
 					options.FullDecompilation = true;
 					options.CancellationToken = ct;
 					options.SaveAsProjectDirectory = targetDirectory;

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -20,60 +20,30 @@ using System.Collections.Generic;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
-using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
-	internal class ModuleRefTableTreeNode : MetadataTableTreeNode
+	internal class ModuleRefTableTreeNode : MetadataTableTreeNode<ModuleRefTableTreeNode.ModuleRefEntry>
 	{
-		public ModuleRefTableTreeNode(PEFile module)
-			: base(HandleKind.ModuleReference, module)
+		public ModuleRefTableTreeNode(MetadataFile metadataFile)
+			: base(TableIndex.ModuleRef, metadataFile)
 		{
 		}
 
-		public override object Text => $"1A ModuleRef ({module.Metadata.GetTableRowCount(TableIndex.ModuleRef)})";
-
-		public override object Icon => Images.Literal;
-
-		public override bool View(ViewModels.TabPageModel tabPage)
+		protected override IReadOnlyList<ModuleRefEntry> LoadTable()
 		{
-			tabPage.Title = Text.ToString();
-			tabPage.SupportsLanguageSwitching = false;
-
-			var view = Helpers.PrepareDataGrid(tabPage, this);
-			var metadata = module.Metadata;
-
 			var list = new List<ModuleRefEntry>();
-			ModuleRefEntry scrollTargetEntry = default;
-
-			foreach (var row in metadata.GetModuleReferences())
+			foreach (var row in metadataFile.Metadata.GetModuleReferences())
 			{
-				ModuleRefEntry entry = new ModuleRefEntry(module, row);
-				if (entry.RID == this.scrollTarget)
-				{
-					scrollTargetEntry = entry;
-				}
-				list.Add(entry);
+				list.Add(new ModuleRefEntry(metadataFile, row));
 			}
-
-			view.ItemsSource = list;
-
-			tabPage.Content = view;
-
-			if (scrollTargetEntry.RID > 0)
-			{
-				ScrollItemIntoView(view, scrollTargetEntry);
-			}
-
-			return true;
+			return list;
 		}
 
-		struct ModuleRefEntry
+		internal struct ModuleRefEntry
 		{
-			readonly int metadataOffset;
-			readonly PEFile module;
-			readonly MetadataReader metadata;
+			readonly MetadataFile metadataFile;
 			readonly ModuleReferenceHandle handle;
 			readonly ModuleReference moduleRef;
 
@@ -81,27 +51,20 @@ namespace ICSharpCode.ILSpy.Metadata
 
 			public int Token => MetadataTokens.GetToken(handle);
 
-			public int Offset => metadataOffset
-				+ metadata.GetTableMetadataOffset(TableIndex.ModuleRef)
-				+ metadata.GetTableRowSize(TableIndex.ModuleRef) * (RID - 1);
+			public int Offset => metadataFile.MetadataOffset
+				+ metadataFile.Metadata.GetTableMetadataOffset(TableIndex.ModuleRef)
+				+ metadataFile.Metadata.GetTableRowSize(TableIndex.ModuleRef) * (RID - 1);
 
-			public string Name => metadata.GetString(moduleRef.Name);
+			public string Name => metadataFile.Metadata.GetString(moduleRef.Name);
 
 			public string NameTooltip => $"{MetadataTokens.GetHeapOffset(moduleRef.Name):X} \"{Name}\"";
 
-			public ModuleRefEntry(PEFile module, ModuleReferenceHandle handle)
+			public ModuleRefEntry(MetadataFile metadataFile, ModuleReferenceHandle handle)
 			{
-				this.metadataOffset = module.Reader.PEHeaders.MetadataStartOffset;
-				this.module = module;
-				this.metadata = module.Metadata;
+				this.metadataFile = metadataFile;
 				this.handle = handle;
-				this.moduleRef = metadata.GetModuleReference(handle);
+				this.moduleRef = metadataFile.Metadata.GetModuleReference(handle);
 			}
-		}
-
-		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-		{
-			language.WriteCommentLine(output, "ModuleRefs");
 		}
 	}
 }

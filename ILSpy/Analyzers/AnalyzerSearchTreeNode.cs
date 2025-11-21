@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -25,6 +25,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.ILSpy.Analyzers.TreeNodes;
 using ICSharpCode.ILSpy.TreeNodes;
 using ICSharpCode.ILSpyX;
+using ICSharpCode.ILSpyX.Analyzers;
 
 namespace ICSharpCode.ILSpy.Analyzers
 {
@@ -57,10 +58,10 @@ namespace ICSharpCode.ILSpy.Analyzers
 		{
 			if (symbol is IEntity)
 			{
-				var context = new AnalyzerContext() {
+				var context = new AnalyzerContext {
 					CancellationToken = ct,
 					Language = Language,
-					AssemblyList = MainWindow.Instance.CurrentAssemblyList
+					AssemblyList = AssemblyList
 				};
 				var results = analyzer.Analyze(symbol, context).Select(SymbolTreeNodeFactory);
 				if (context.SortResults)
@@ -75,41 +76,29 @@ namespace ICSharpCode.ILSpy.Analyzers
 			}
 		}
 
-		AnalyzerTreeNode SymbolTreeNodeFactory(ISymbol symbol)
+		AnalyzerTreeNode SymbolTreeNodeFactory(ISymbol resultSymbol)
 		{
-			if (symbol == null)
+			if (resultSymbol == null)
 			{
-				throw new ArgumentNullException(nameof(symbol));
+				throw new ArgumentNullException(nameof(resultSymbol));
 			}
 
-			switch (symbol)
+			switch (resultSymbol)
 			{
 				case IModule module:
-					return new AnalyzedModuleTreeNode(module) {
-						Language = this.Language
-					};
+					return new AnalyzedModuleTreeNode(module, (IEntity)this.symbol);
 				case ITypeDefinition td:
-					return new AnalyzedTypeTreeNode(td) {
-						Language = this.Language
-					};
+					return new AnalyzedTypeTreeNode(td, (IEntity)this.symbol);
 				case IField fd:
-					return new AnalyzedFieldTreeNode(fd) {
-						Language = this.Language
-					};
+					return new AnalyzedFieldTreeNode(fd, (IEntity)this.symbol);
 				case IMethod md:
-					return new AnalyzedMethodTreeNode(md) {
-						Language = this.Language
-					};
+					return new AnalyzedMethodTreeNode(md, (IEntity)this.symbol);
 				case IProperty pd:
-					return new AnalyzedPropertyTreeNode(pd) {
-						Language = this.Language
-					};
+					return new AnalyzedPropertyTreeNode(pd, (IEntity)this.symbol);
 				case IEvent ed:
-					return new AnalyzedEventTreeNode(ed) {
-						Language = this.Language
-					};
+					return new AnalyzedEventTreeNode(ed, (IEntity)this.symbol);
 				default:
-					throw new ArgumentOutOfRangeException(nameof(symbol), $"Symbol {symbol.GetType().FullName} is not supported.");
+					throw new ArgumentOutOfRangeException(nameof(resultSymbol), $"Symbol {resultSymbol.GetType().FullName} is not supported.");
 			}
 		}
 

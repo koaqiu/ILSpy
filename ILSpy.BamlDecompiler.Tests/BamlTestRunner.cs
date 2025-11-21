@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2020 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2020 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,12 +17,11 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.Collections;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Xml.Linq;
 
+using ICSharpCode.BamlDecompiler;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Tests.Helpers;
 using ICSharpCode.Decompiler.Util;
@@ -154,6 +153,18 @@ namespace ILSpy.BamlDecompiler.Tests
 			RunTest("cases/issue2116");
 		}
 
+		[Test]
+		public void Issue3318()
+		{
+			RunTest("cases/issue3318");
+		}
+
+		[Test]
+		public void ReadonlyProperty()
+		{
+			RunTest("cases/readonlyproperty");
+		}
+
 		#region RunTest
 		void RunTest(string name)
 		{
@@ -173,7 +184,7 @@ namespace ILSpy.BamlDecompiler.Tests
 				resolver.AddSearchDirectory(Path.GetDirectoryName(asmPath));
 				var res = module.Resources.First();
 				Stream bamlStream = LoadBaml(res, name + ".baml");
-				Assert.IsNotNull(bamlStream);
+				Assert.That(bamlStream, Is.Not.Null);
 
 				BamlDecompilerTypeSystem typeSystem = new BamlDecompilerTypeSystem(module, resolver);
 				var decompiler = new XamlDecompiler(typeSystem, new BamlDecompilerSettings());

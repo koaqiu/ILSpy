@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -79,7 +79,7 @@ namespace ICSharpCode.Decompiler.Documentation
 		/// </summary>
 		/// <returns>Either TypeDefinitionHandle, if the type is defined in the module or ExportedTypeHandle,
 		/// if the module contains a type forwarder. Returns a nil handle, if the type was not found.</returns>
-		public EntityHandle ResolveInPEFile(PEFile module)
+		public EntityHandle ResolveInPEFile(MetadataFile module)
 		{
 			string[] parts = typeName.Split('.');
 			for (int i = parts.Length - 1; i >= 0; i--)

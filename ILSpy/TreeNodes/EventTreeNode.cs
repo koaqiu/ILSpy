@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -51,8 +51,8 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		private IEvent GetEventDefinition()
 		{
-			return ((MetadataModule)EventDefinition.ParentModule.PEFile
-				?.GetTypeSystemWithCurrentOptionsOrNull()
+			return ((MetadataModule)EventDefinition.ParentModule?.MetadataFile
+				?.GetTypeSystemWithCurrentOptionsOrNull(SettingsService, AssemblyTreeModel.CurrentLanguageVersion)
 				?.MainModule)?.GetDefinition((EventDefinitionHandle)EventDefinition.MetadataToken) ?? EventDefinition;
 		}
 
@@ -65,14 +65,14 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		public static ImageSource GetIcon(IEvent @event)
 		{
-			return Images.GetIcon(MemberIcon.Event, MethodTreeNode.GetOverlayIcon(@event.Accessibility), @event.IsStatic);
+			return Images.GetIcon(MemberIcon.Event, Images.GetOverlayIcon(@event.Accessibility), @event.IsStatic);
 		}
 
-		public override FilterResult Filter(FilterSettings settings)
+		public override FilterResult Filter(LanguageSettings settings)
 		{
 			if (settings.ShowApiLevel == ApiVisibility.PublicOnly && !IsPublicAPI)
 				return FilterResult.Hidden;
-			if (settings.SearchTermMatches(EventDefinition.Name) && (settings.ShowApiLevel == ApiVisibility.All || settings.Language.ShowMember(EventDefinition)))
+			if (settings.SearchTermMatches(EventDefinition.Name) && (settings.ShowApiLevel == ApiVisibility.All || LanguageService.Language.ShowMember(EventDefinition)))
 				return FilterResult.Match;
 			else
 				return FilterResult.Hidden;

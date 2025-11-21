@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2022 Siegfried Pammer
+// Copyright (c) 2022 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -29,7 +29,7 @@ namespace ICSharpCode.Decompiler.Metadata
 {
 	public class FindTypeDecoder : ISignatureTypeProvider<bool, Unit>
 	{
-		readonly PEFile declaringModule;
+		readonly MetadataFile declaringModule;
 		readonly MetadataModule? currentModule;
 		readonly TypeDefinitionHandle handle;
 		readonly string? typeName;
@@ -40,7 +40,7 @@ namespace ICSharpCode.Decompiler.Metadata
 		/// Constructs a FindTypeDecoder that finds uses of a specific type-definition handle.
 		/// This assumes that the module we are search in is the same as the module containing the type-definiton.
 		/// </summary>
-		internal FindTypeDecoder(TypeDefinitionHandle handle, PEFile declaringModule)
+		internal FindTypeDecoder(TypeDefinitionHandle handle, MetadataFile declaringModule)
 		{
 			this.handle = handle;
 			this.declaringModule = declaringModule;
@@ -54,7 +54,7 @@ namespace ICSharpCode.Decompiler.Metadata
 		public FindTypeDecoder(MetadataModule currentModule, ITypeDefinition type)
 		{
 			this.currentModule = currentModule;
-			this.declaringModule = type.ParentModule?.PEFile ?? throw new InvalidOperationException("Cannot use MetadataModule without PEFile as context.");
+			this.declaringModule = type.ParentModule?.MetadataFile ?? throw new InvalidOperationException("Cannot use MetadataModule without PEFile as context.");
 			this.handle = (TypeDefinitionHandle)type.MetadataToken;
 			this.primitiveType = type.KnownTypeCode == KnownTypeCode.None ? 0 : type.KnownTypeCode.ToPrimitiveTypeCode();
 			this.typeName = type.MetadataName;
@@ -128,7 +128,7 @@ namespace ICSharpCode.Decompiler.Metadata
 			if (td == null)
 				return false;
 
-			return td.MetadataToken == this.handle && td.ParentModule?.PEFile == declaringModule;
+			return td.MetadataToken == this.handle && td.ParentModule?.MetadataFile == declaringModule;
 		}
 
 		public bool GetTypeFromSpecification(MetadataReader reader, Unit genericContext, TypeSpecificationHandle handle, byte rawTypeKind)

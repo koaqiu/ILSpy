@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019 Daniel Grunwald
+// Copyright (c) 2019 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -31,7 +31,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var callsToFix = new List<Call>();
 			foreach (var call in function.Descendants.OfType<Call>())
 			{
-				if (!(call.Method.IsOperator && (call.Method.Name == "op_Increment" || call.Method.Name == "op_Decrement")))
+				if (!UserDefinedCompoundAssign.IsIncrementOrDecrement(call.Method, context.Settings))
 					continue;
 				if (call.Arguments.Count != 1)
 					continue;

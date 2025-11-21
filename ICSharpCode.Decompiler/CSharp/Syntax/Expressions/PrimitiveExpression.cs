@@ -1,4 +1,4 @@
-﻿// 
+// 
 // PrimitiveExpression.cs
 //
 // Author:
@@ -42,6 +42,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		StringLiteral,
 		VerbatimStringLiteral,
 		CharLiteral,
+		Utf8Literal,
 	}
 
 	/// <summary>

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,12 +17,16 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Windows;
 
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.ILSpy.TreeNodes;
 using ICSharpCode.ILSpyX;
-using ICSharpCode.TreeView;
+using ICSharpCode.ILSpyX.TreeView;
+using ICSharpCode.ILSpyX.TreeView.PlatformAbstractions;
+
+#nullable enable
 
 namespace ICSharpCode.ILSpy.Analyzers
 {
@@ -31,30 +35,42 @@ namespace ICSharpCode.ILSpy.Analyzers
 	/// </summary>
 	public abstract class AnalyzerEntityTreeNode : AnalyzerTreeNode, IMemberTreeNode
 	{
-		public abstract IEntity Member { get; }
+		public abstract IEntity? Member { get; }
 
-		public override void ActivateItem(System.Windows.RoutedEventArgs e)
+		public IEntity? SourceMember { get; protected set; }
+
+		public override void ActivateItem(IPlatformRoutedEventArgs e)
 		{
 			e.Handled = true;
-			if (this.Member.MetadataToken.IsNil)
+			if (this.Member == null || this.Member.MetadataToken.IsNil)
 			{
 				MessageBox.Show(Properties.Resources.CannotAnalyzeMissingRef, "ILSpy");
 				return;
 			}
-			MainWindow.Instance.JumpToReference(new EntityReference(this.Member.ParentModule.PEFile, this.Member.MetadataToken));
+
+			var module = this.Member.ParentModule?.MetadataFile;
+
+			Debug.Assert(module != null);
+
+			MessageBus.Send(this, new NavigateToReferenceEventArgs(new EntityReference(module, this.Member.MetadataToken), this.SourceMember));
 		}
+
+		public override object? ToolTip => Member?.ParentModule?.MetadataFile?.FileName;
 
 		public override bool HandleAssemblyListChanged(ICollection<LoadedAssembly> removedAssemblies, ICollection<LoadedAssembly> addedAssemblies)
 		{
+			if (Member == null)
+			{
+				return true;
+			}
 			foreach (LoadedAssembly asm in removedAssemblies)
 			{
-				if (this.Member.ParentModule.PEFile == asm.GetPEFileOrNull())
+				if (this.Member.ParentModule!.MetadataFile == asm.GetMetadataFileOrNull())
 					return false; // remove this node
 			}
 			this.Children.RemoveAll(
 				delegate (SharpTreeNode n) {
-					AnalyzerTreeNode an = n as AnalyzerTreeNode;
-					return an == null || !an.HandleAssemblyListChanged(removedAssemblies, addedAssemblies);
+					return n is not AnalyzerTreeNode an || !an.HandleAssemblyListChanged(removedAssemblies, addedAssemblies);
 				});
 			return true;
 		}

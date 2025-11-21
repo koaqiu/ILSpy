@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2018 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2018 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -138,6 +138,11 @@ namespace ICSharpCode.Decompiler.Tests.TypeSystem
 	public struct MyStructWithCtor
 	{
 		public MyStructWithCtor(int a) { }
+	}
+
+	public struct MyStructWithDefaultCtor
+	{
+		public MyStructWithDefaultCtor() { }
 	}
 
 	public class MyClassWithCtor
@@ -554,6 +559,19 @@ namespace ICSharpCode.Decompiler.Tests.TypeSystem
 		}
 	}
 
+	public struct GenericStructWithIDisposableConstraintAndImplicitConversion<T> where T : IDisposable
+	{
+		public static implicit operator GenericStructWithIDisposableConstraintAndImplicitConversion<T>(T s)
+		{
+			return default(GenericStructWithIDisposableConstraintAndImplicitConversion<T>);
+		}
+	}
+
+	public class ClassImplementingIDisposable : IDisposable
+	{
+		public void Dispose() { }
+	}
+
 	public class ClassWithAttributeOnTypeParameter<[Double(2)] T> { }
 
 	[Guid("790C6E0B-9194-4cc9-9426-A48A63185696"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
@@ -747,5 +765,25 @@ namespace ICSharpCode.Decompiler.Tests.TypeSystem
 
 		[DispId(11)]
 		void StopRouter();
+	}
+
+	public static class ExtensionEverything
+	{
+		extension(int input)
+		{
+			public void Method() { }
+			public void Method(char c) { }
+			public string AsString => input.ToString();
+			public string Test {
+				get => "Test";
+				set { }
+			}
+			public static void StaticMethod() { }
+			public static void StaticMethod(double x) { }
+			public static string StaticProperty => "StaticProperty";
+			public static void GenericMethod<T>(T value)
+			{
+			}
+		}
 	}
 }

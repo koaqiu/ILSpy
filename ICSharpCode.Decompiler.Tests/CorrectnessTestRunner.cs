@@ -1,4 +1,4 @@
-﻿// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -16,8 +16,6 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
-using System.CodeDom.Compiler;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -46,7 +44,7 @@ namespace ICSharpCode.Decompiler.Tests
 				if (file.Extension == ".txt" || file.Extension == ".exe" || file.Extension == ".config")
 					continue;
 				var testName = Path.GetFileNameWithoutExtension(file.Name);
-				Assert.Contains(testName, testNames);
+				Assert.That(testNames, Has.Member(testName));
 			}
 		}
 
@@ -314,10 +312,16 @@ namespace ICSharpCode.Decompiler.Tests
 		}
 
 		[Test]
+		public async Task NonGenericConstrainedCallVirt()
+		{
+			await RunIL("NonGenericConstrainedCallVirt.il", CompilerOptions.UseRoslynLatest);
+		}
+
+		[Test]
 		public async Task StackTests()
 		{
 			// IL contains .corflags = 32BITREQUIRED
-			await RunIL("StackTests.il", asmOptions: AssemblerOptions.Force32Bit);
+			await RunIL("StackTests.il", CompilerOptions.Force32Bit, AssemblerOptions.Force32Bit);
 		}
 
 		[Test]
@@ -336,10 +340,6 @@ namespace ICSharpCode.Decompiler.Tests
 		[Test]
 		public async Task UnsafeCode([ValueSource(nameof(defaultOptions))] CompilerOptions options)
 		{
-			if (options.HasFlag(CompilerOptions.UseMcs2_6_4))
-			{
-				Assert.Ignore("Decompiler bug with mono!");
-			}
 			await RunCS(options: options);
 		}
 
@@ -398,10 +398,6 @@ namespace ICSharpCode.Decompiler.Tests
 		[Test]
 		public async Task MiniJSON([ValueSource(nameof(defaultOptions))] CompilerOptions options)
 		{
-			if (options.HasFlag(CompilerOptions.UseMcs2_6_4))
-			{
-				Assert.Ignore("Decompiler bug with mono!");
-			}
 			await RunCS(options: options);
 		}
 
@@ -416,13 +412,13 @@ namespace ICSharpCode.Decompiler.Tests
 			if ((options & CompilerOptions.UseRoslynMask) != 0 && (options & CompilerOptions.TargetNet40) == 0)
 				options |= CompilerOptions.UseTestRunner;
 			string testFileName = testName + ".cs";
-			string testOutputFileName = testName + Tester.GetSuffix(options) + ".exe";
-			CompilerResults outputFile = null, decompiledOutputFile = null;
+			string testOutputFileName = TestsAssemblyOutput.GetFilePath(TestCasePath, testName, Tester.GetSuffix(options) + ".exe");
+			Helpers.CompilerResults outputFile = null, decompiledOutputFile = null;
 
 			try
 			{
 				outputFile = await Tester.CompileCSharp(Path.Combine(TestCasePath, testFileName), options,
-					outputFileName: Path.Combine(TestCasePath, testOutputFileName)).ConfigureAwait(false);
+					outputFileName: testOutputFileName).ConfigureAwait(false);
 				string decompiledCodeFile = await Tester.DecompileCSharp(outputFile.PathToAssembly, Tester.GetSettings(options)).ConfigureAwait(false);
 				if ((options & CompilerOptions.UseMcsMask) != 0)
 				{
@@ -460,13 +456,13 @@ namespace ICSharpCode.Decompiler.Tests
 			if ((options & CompilerOptions.UseRoslynMask) != 0)
 				options |= CompilerOptions.UseTestRunner;
 			string testFileName = testName + ".vb";
-			string testOutputFileName = testName + Tester.GetSuffix(options) + ".exe";
-			CompilerResults outputFile = null, decompiledOutputFile = null;
+			string testOutputFileName = TestsAssemblyOutput.GetFilePath(TestCasePath, testName, Tester.GetSuffix(options) + ".exe");
+			Helpers.CompilerResults outputFile = null, decompiledOutputFile = null;
 
 			try
 			{
 				outputFile = await Tester.CompileVB(Path.Combine(TestCasePath, testFileName), options,
-					outputFileName: Path.Combine(TestCasePath, testOutputFileName)).ConfigureAwait(false);
+					outputFileName: testOutputFileName).ConfigureAwait(false);
 				string decompiledCodeFile = await Tester.DecompileCSharp(outputFile.PathToAssembly, Tester.GetSettings(options)).ConfigureAwait(false);
 				decompiledOutputFile = await Tester.CompileCSharp(decompiledCodeFile, options).ConfigureAwait(false);
 
@@ -485,7 +481,12 @@ namespace ICSharpCode.Decompiler.Tests
 		async Task RunIL(string testFileName, CompilerOptions options = CompilerOptions.UseDebug, AssemblerOptions asmOptions = AssemblerOptions.None)
 		{
 			string outputFile = null;
-			CompilerResults decompiledOutputFile = null;
+			Helpers.CompilerResults decompiledOutputFile = null;
+
+			bool optionsForce32Bit = options.HasFlag(CompilerOptions.Force32Bit);
+			bool asmOptionsForce32Bit = asmOptions.HasFlag(AssemblerOptions.Force32Bit);
+
+			Assert.That(asmOptionsForce32Bit, Is.EqualTo(optionsForce32Bit), "Inconsistent architecture.");
 
 			try
 			{

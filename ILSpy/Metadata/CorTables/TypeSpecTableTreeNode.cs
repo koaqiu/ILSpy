@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -26,54 +26,27 @@ using ICSharpCode.Decompiler.Metadata;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
-	internal class TypeSpecTableTreeNode : MetadataTableTreeNode
+	internal class TypeSpecTableTreeNode : MetadataTableTreeNode<TypeSpecTableTreeNode.TypeSpecEntry>
 	{
-		public TypeSpecTableTreeNode(PEFile module)
-			: base(HandleKind.TypeSpecification, module)
+		public TypeSpecTableTreeNode(MetadataFile metadataFile)
+			: base(TableIndex.TypeSpec, metadataFile)
 		{
 		}
 
-		public override object Text => $"1B TypeSpec ({module.Metadata.GetTableRowCount(TableIndex.TypeSpec)})";
-
-		public override object Icon => Images.Literal;
-
-		public override bool View(ViewModels.TabPageModel tabPage)
+		protected override IReadOnlyList<TypeSpecEntry> LoadTable()
 		{
-			tabPage.Title = Text.ToString();
-			tabPage.SupportsLanguageSwitching = false;
-
-			var view = Helpers.PrepareDataGrid(tabPage, this);
-			var metadata = module.Metadata;
-
 			var list = new List<TypeSpecEntry>();
-			TypeSpecEntry scrollTargetEntry = default;
-
-			foreach (var row in metadata.GetTypeSpecifications())
+			foreach (var row in metadataFile.Metadata.GetTypeSpecifications())
 			{
-				TypeSpecEntry entry = new TypeSpecEntry(module, row);
-				if (scrollTarget.Equals(row))
-				{
-					scrollTargetEntry = entry;
-				}
-				list.Add(entry);
+				list.Add(new TypeSpecEntry(metadataFile, row));
 			}
-
-			view.ItemsSource = list;
-
-			tabPage.Content = view;
-
-			if (scrollTargetEntry.RID > 0)
-			{
-				ScrollItemIntoView(view, scrollTargetEntry);
-			}
-
-			return true;
+			return list;
 		}
 
-		struct TypeSpecEntry
+		internal struct TypeSpecEntry
 		{
 			readonly int metadataOffset;
-			readonly PEFile module;
+			readonly MetadataFile module;
 			readonly MetadataReader metadata;
 			readonly TypeSpecificationHandle handle;
 			readonly TypeSpecification typeSpec;
@@ -86,7 +59,7 @@ namespace ICSharpCode.ILSpy.Metadata
 				+ metadata.GetTableMetadataOffset(TableIndex.TypeSpec)
 				+ metadata.GetTableRowSize(TableIndex.TypeSpec) * (RID - 1);
 
-			[StringFormat("X")]
+			[ColumnInfo("X8", Kind = ColumnKind.HeapOffset)]
 			public int Signature => MetadataTokens.GetHeapOffset(typeSpec.Signature);
 
 			public string SignatureTooltip {
@@ -97,19 +70,14 @@ namespace ICSharpCode.ILSpy.Metadata
 				}
 			}
 
-			public TypeSpecEntry(PEFile module, TypeSpecificationHandle handle)
+			public TypeSpecEntry(MetadataFile metadataFile, TypeSpecificationHandle handle)
 			{
-				this.metadataOffset = module.Reader.PEHeaders.MetadataStartOffset;
-				this.module = module;
-				this.metadata = module.Metadata;
+				this.module = metadataFile;
+				this.metadataOffset = metadataFile.MetadataOffset;
+				this.metadata = metadataFile.Metadata;
 				this.handle = handle;
 				this.typeSpec = metadata.GetTypeSpecification(handle);
 			}
-		}
-
-		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-		{
-			language.WriteCommentLine(output, "TypeSpecs");
 		}
 	}
 }

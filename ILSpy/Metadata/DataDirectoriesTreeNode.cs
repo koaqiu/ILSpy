@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,12 +17,9 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Reflection.PortableExecutable;
-using System.Windows.Controls;
-using System.Windows.Data;
 
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
-using ICSharpCode.ILSpy.TextView;
 using ICSharpCode.ILSpy.TreeNodes;
 
 namespace ICSharpCode.ILSpy.Metadata
@@ -38,7 +35,8 @@ namespace ICSharpCode.ILSpy.Metadata
 
 		public override object Text => "Data Directories";
 
-		public override object Icon => Images.Literal;
+		public override object Icon => Images.ListFolder;
+		public override object ExpandedIcon => Images.ListFolderOpen;
 
 		public override bool View(ViewModels.TabPageModel tabPage)
 		{
@@ -80,7 +78,6 @@ namespace ICSharpCode.ILSpy.Metadata
 
 		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
 		{
-			language.WriteCommentLine(output, "Data Directories");
 		}
 
 		class DataDirectoryEntry

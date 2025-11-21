@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,10 +17,12 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.Linq;
+using System.Diagnostics;
 
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.ILSpy.TreeNodes;
+
+#nullable enable
 
 namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 {
@@ -28,9 +30,10 @@ namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 	{
 		readonly ITypeDefinition analyzedType;
 
-		public AnalyzedTypeTreeNode(ITypeDefinition analyzedType)
+		public AnalyzedTypeTreeNode(ITypeDefinition analyzedType, IEntity? source)
 		{
 			this.analyzedType = analyzedType ?? throw new ArgumentNullException(nameof(analyzedType));
+			this.SourceMember = source;
 			this.LazyLoading = true;
 		}
 
@@ -40,13 +43,13 @@ namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 
 		protected override void LoadChildren()
 		{
-			var analyzers = App.ExportProvider.GetExports<IAnalyzer, IAnalyzerMetadata>("Analyzer");
-			foreach (var lazy in analyzers.OrderBy(item => item.Metadata.Order))
+			foreach (var lazy in Analyzers)
 			{
 				var analyzer = lazy.Value;
+				Debug.Assert(analyzer != null);
 				if (analyzer.Show(analyzedType))
 				{
-					this.Children.Add(new AnalyzerSearchTreeNode(analyzedType, analyzer, lazy.Metadata.Header));
+					this.Children.Add(new AnalyzerSearchTreeNode(analyzedType, analyzer, lazy.Metadata!.Header));
 				}
 			}
 		}

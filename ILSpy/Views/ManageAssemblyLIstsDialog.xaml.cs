@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -29,10 +29,10 @@ namespace ICSharpCode.ILSpy
 	/// </summary>
 	public partial class ManageAssemblyListsDialog : Window
 	{
-		public ManageAssemblyListsDialog()
+		public ManageAssemblyListsDialog(SettingsService settingsService)
 		{
 			InitializeComponent();
-			DataContext = new ManageAssemblyListsViewModel(this);
+			DataContext = new ManageAssemblyListsViewModel(this, settingsService);
 		}
 
 		private void PreconfiguredAssemblyListsMenuClick(object sender, RoutedEventArgs e)

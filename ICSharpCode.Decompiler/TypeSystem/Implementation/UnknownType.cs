@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -26,7 +26,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 	/// An unknown type where (part) of the name is known.
 	/// </summary>
 	[Serializable]
-	public class UnknownType : AbstractType, ITypeReference
+	public class UnknownType : AbstractType, ITypeDefinitionOrUnknown, ITypeReference
 	{
 		readonly bool namespaceKnown;
 		readonly FullTypeName fullTypeName;
@@ -78,6 +78,11 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			return this;
 		}
 
+		public override ITypeDefinitionOrUnknown GetDefinitionOrUnknown()
+		{
+			return this;
+		}
+
 		public override string Name {
 			get { return fullTypeName.Name; }
 		}
@@ -88,6 +93,10 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 
 		public override string ReflectionName {
 			get { return namespaceKnown ? fullTypeName.ReflectionName : "?"; }
+		}
+
+		public override string FullName {
+			get { return namespaceKnown ? fullTypeName.FullName : "?"; }
 		}
 
 		public FullTypeName FullTypeName => fullTypeName;
@@ -102,7 +111,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 
 		public override IType ChangeNullability(Nullability nullability)
 		{
-			if (nullability == Nullability.Oblivious)
+			if (nullability == Nullability.Oblivious || isReferenceType == false)
 				return this;
 			else
 				return new NullabilityAnnotatedType(this, nullability);

@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 // Copyright (c) 2014 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
@@ -75,6 +75,26 @@ namespace ICSharpCode.Decompiler.IL
 					return Sign.Unsigned;
 				default:
 					return Sign.None;
+			}
+		}
+
+		public static bool HasOppositeSign(this PrimitiveType primitiveType)
+		{
+			switch (primitiveType)
+			{
+				case PrimitiveType.I1:
+				case PrimitiveType.I2:
+				case PrimitiveType.I4:
+				case PrimitiveType.I8:
+				case PrimitiveType.U1:
+				case PrimitiveType.U2:
+				case PrimitiveType.U4:
+				case PrimitiveType.U8:
+				case PrimitiveType.I:
+				case PrimitiveType.U:
+					return true;
+				default:
+					return false;
 			}
 		}
 
@@ -218,6 +238,10 @@ namespace ICSharpCode.Decompiler.IL
 						default:
 							return SpecialType.UnknownType;
 					}
+				case DefaultValue defaultValue:
+					return defaultValue.Type;
+				case ILFunction func when func.DelegateType != null:
+					return func.DelegateType;
 				default:
 					return SpecialType.UnknownType;
 			}

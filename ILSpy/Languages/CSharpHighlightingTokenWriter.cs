@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Siegfried Pammer
+// Copyright (c) 2018 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -23,6 +23,7 @@ using ICSharpCode.AvalonEdit.Highlighting;
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.OutputVisitor;
 using ICSharpCode.Decompiler.CSharp.Syntax;
+using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.ILSpyX.Extensions;
 
@@ -55,9 +56,15 @@ namespace ICSharpCode.ILSpy
 
 		HighlightingColor methodCallColor;
 		HighlightingColor methodDeclarationColor;
-
 		HighlightingColor fieldDeclarationColor;
 		HighlightingColor fieldAccessColor;
+		HighlightingColor propertyDeclarationColor;
+		HighlightingColor propertyAccessColor;
+		HighlightingColor eventDeclarationColor;
+		HighlightingColor eventAccessColor;
+
+		HighlightingColor variableColor;
+		HighlightingColor parameterColor;
 
 		HighlightingColor valueKeywordColor;
 		HighlightingColor thisKeywordColor;
@@ -95,12 +102,16 @@ namespace ICSharpCode.ILSpy
 			this.enumerationTypeColor = highlighting.GetNamedColor("EnumTypes");
 			this.typeParameterTypeColor = highlighting.GetNamedColor("TypeParameters");
 			this.delegateTypeColor = highlighting.GetNamedColor("DelegateTypes");
-			this.methodDeclarationColor = this.methodCallColor = highlighting.GetNamedColor("MethodCall");
-			//this.eventDeclarationColor = this.eventAccessColor = defaultTextColor;
-			//this.propertyDeclarationColor = this.propertyAccessColor = defaultTextColor;
-			this.fieldDeclarationColor = this.fieldAccessColor = highlighting.GetNamedColor("FieldAccess");
-			//this.variableDeclarationColor = this.variableAccessColor = defaultTextColor;
-			//this.parameterDeclarationColor = this.parameterAccessColor = defaultTextColor;
+			this.methodDeclarationColor = highlighting.GetNamedColor("MethodDeclaration");
+			this.methodCallColor = highlighting.GetNamedColor("MethodCall");
+			this.fieldDeclarationColor = highlighting.GetNamedColor("FieldDeclaration");
+			this.fieldAccessColor = highlighting.GetNamedColor("FieldAccess");
+			this.propertyDeclarationColor = highlighting.GetNamedColor("PropertyDeclaration");
+			this.propertyAccessColor = highlighting.GetNamedColor("PropertyAccess");
+			this.eventDeclarationColor = highlighting.GetNamedColor("EventDeclaration");
+			this.eventAccessColor = highlighting.GetNamedColor("EventAccess");
+			this.variableColor = highlighting.GetNamedColor("Variable");
+			this.parameterColor = highlighting.GetNamedColor("Parameter");
 			this.valueKeywordColor = highlighting.GetNamedColor("NullOrValueKeywords");
 			this.thisKeywordColor = highlighting.GetNamedColor("ThisOrBaseReference");
 			this.trueKeywordColor = highlighting.GetNamedColor("TrueFalse");
@@ -231,6 +242,7 @@ namespace ICSharpCode.ILSpy
 				case "class":
 				case "interface":
 				case "delegate":
+				case "extension":
 					color = referenceTypeKeywordsColor;
 					break;
 				case "record":
@@ -338,13 +350,25 @@ namespace ICSharpCode.ILSpy
 		public override void WriteIdentifier(Identifier identifier)
 		{
 			HighlightingColor color = null;
-			if (identifier.Name == "value"
-				&& identifier.Parent?.GetResolveResult() is ILVariableResolveResult rr
-				&& rr.Variable.Kind == Decompiler.IL.VariableKind.Parameter
-				&& identifier.Ancestors.OfType<Accessor>().FirstOrDefault() is Accessor accessor
-				&& accessor.Role != PropertyDeclaration.GetterRole)
+			if (identifier.Parent?.GetResolveResult() is ILVariableResolveResult rr)
 			{
-				color = valueKeywordColor;
+				if (rr.Variable.Kind == VariableKind.Parameter)
+				{
+					if (identifier.Name == "value"
+						&& identifier.Ancestors.OfType<Accessor>().FirstOrDefault() is { } accessor
+						&& accessor.Role != PropertyDeclaration.GetterRole)
+					{
+						color = valueKeywordColor;
+					}
+					else
+					{
+						color = parameterColor;
+					}
+				}
+				else
+				{
+					color = variableColor;
+				}
 			}
 			if (identifier.Parent is AstType)
 			{
@@ -361,59 +385,39 @@ namespace ICSharpCode.ILSpy
 			switch (GetCurrentDefinition())
 			{
 				case ITypeDefinition t:
-					switch (t.Kind)
-					{
-						case TypeKind.Delegate:
-							color = delegateTypeColor;
-							break;
-						case TypeKind.Class:
-							color = referenceTypeColor;
-							break;
-						case TypeKind.Interface:
-							color = interfaceTypeColor;
-							break;
-						case TypeKind.Enum:
-							color = enumerationTypeColor;
-							break;
-						case TypeKind.Struct:
-							color = valueTypeColor;
-							break;
-					}
+					ApplyTypeColor(t, ref color);
 					break;
-				case IMethod m:
+				case IMethod:
 					color = methodDeclarationColor;
 					break;
-				case IField f:
+				case IField:
 					color = fieldDeclarationColor;
+					break;
+				case IProperty:
+					color = propertyDeclarationColor;
+					break;
+				case IEvent:
+					color = eventDeclarationColor;
 					break;
 			}
 			switch (GetCurrentMemberReference())
 			{
 				case IType t:
-					switch (t.Kind)
-					{
-						case TypeKind.Delegate:
-							color = delegateTypeColor;
-							break;
-						case TypeKind.Class:
-							color = referenceTypeColor;
-							break;
-						case TypeKind.Interface:
-							color = interfaceTypeColor;
-							break;
-						case TypeKind.Enum:
-							color = enumerationTypeColor;
-							break;
-						case TypeKind.Struct:
-							color = valueTypeColor;
-							break;
-					}
+					ApplyTypeColor(t, ref color);
 					break;
 				case IMethod m:
 					color = methodCallColor;
+					if (m.IsConstructor)
+						ApplyTypeColor(m.DeclaringType, ref color);
 					break;
-				case IField f:
+				case IField:
 					color = fieldAccessColor;
+					break;
+				case IProperty:
+					color = propertyAccessColor;
+					break;
+				case IEvent:
+					color = eventAccessColor;
 					break;
 			}
 			if (color != null)
@@ -424,6 +428,28 @@ namespace ICSharpCode.ILSpy
 			if (color != null)
 			{
 				EndSpan();
+			}
+		}
+
+		void ApplyTypeColor(IType type, ref HighlightingColor color)
+		{
+			switch (type?.Kind)
+			{
+				case TypeKind.Delegate:
+					color = delegateTypeColor;
+					break;
+				case TypeKind.Class:
+					color = referenceTypeColor;
+					break;
+				case TypeKind.Interface:
+					color = interfaceTypeColor;
+					break;
+				case TypeKind.Enum:
+					color = enumerationTypeColor;
+					break;
+				case TypeKind.Struct:
+					color = valueTypeColor;
+					break;
 			}
 		}
 
@@ -474,9 +500,11 @@ namespace ICSharpCode.ILSpy
 			{
 				symbol = node.Parent.GetSymbol();
 			}
-			if (symbol != null && node.Parent is ObjectCreateExpression)
+			if (symbol != null && node.Role == Roles.Type && node.Parent is ObjectCreateExpression)
 			{
-				symbol = node.Parent.GetSymbol();
+				var ctorSymbol = node.Parent.GetSymbol();
+				if (ctorSymbol != null)
+					symbol = ctorSymbol;
 			}
 			if (node is IdentifierExpression && node.Role == Roles.TargetExpression && node.Parent is InvocationExpression && symbol is IMember member)
 			{

@@ -83,6 +83,11 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 						case ClassType.RecordClass:
 							writer.WriteKeyword(Roles.RecordKeyword, "record");
 							break;
+						case ClassType.RecordStruct:
+							writer.WriteKeyword(Roles.RecordKeyword, "record");
+							writer.Space();
+							writer.WriteKeyword(Roles.StructKeyword, "struct");
+							break;
 						default:
 							throw new Exception("Invalid value for ClassType");
 					}
@@ -131,7 +136,9 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				{
 					if ((ConversionFlags & ConversionFlags.ShowParameterModifiers) == 0)
 					{
-						param.ParameterModifier = ParameterModifier.None;
+						param.ParameterModifier = ReferenceKind.None;
+						param.IsScopedRef = false;
+						param.IsParams = false;
 					}
 					if ((ConversionFlags & ConversionFlags.ShowParameterDefaultValues) == 0)
 					{
@@ -175,8 +182,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 
 			if ((ConversionFlags & ConversionFlags.ShowBody) == ConversionFlags.ShowBody && !(node is TypeDeclaration))
 			{
-				IProperty property = symbol as IProperty;
-				if (property != null)
+				if (symbol is IProperty property)
 				{
 					writer.Space();
 					writer.WriteToken(Roles.LBrace, "{");
@@ -189,7 +195,10 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					}
 					if (property.CanSet)
 					{
-						writer.WriteKeyword(PropertyDeclaration.SetKeywordRole, "set");
+						if ((ConversionFlags & ConversionFlags.SupportInitAccessors) != 0 && property.Setter.IsInitOnly)
+							writer.WriteKeyword(PropertyDeclaration.InitKeywordRole, "init");
+						else
+							writer.WriteKeyword(PropertyDeclaration.SetKeywordRole, "set");
 						writer.WriteToken(Roles.Semicolon, ";");
 						writer.Space();
 					}
@@ -227,12 +236,15 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			astBuilder.ShowTypeParametersForUnboundTypes = true;
 			astBuilder.ShowModifiers = (ConversionFlags & ConversionFlags.ShowModifiers) == ConversionFlags.ShowModifiers;
 			astBuilder.ShowAccessibility = (ConversionFlags & ConversionFlags.ShowAccessibility) == ConversionFlags.ShowAccessibility;
+			astBuilder.UsePrivateProtectedAccessibility = (ConversionFlags & ConversionFlags.UsePrivateProtectedAccessibility) == ConversionFlags.UsePrivateProtectedAccessibility;
 			astBuilder.AlwaysUseShortTypeNames = (ConversionFlags & ConversionFlags.UseFullyQualifiedTypeNames) != ConversionFlags.UseFullyQualifiedTypeNames;
 			astBuilder.ShowParameterNames = (ConversionFlags & ConversionFlags.ShowParameterNames) == ConversionFlags.ShowParameterNames;
 			astBuilder.UseNullableSpecifierForValueTypes = (ConversionFlags & ConversionFlags.UseNullableSpecifierForValueTypes) != 0;
 			astBuilder.SupportInitAccessors = (ConversionFlags & ConversionFlags.SupportInitAccessors) != 0;
 			astBuilder.SupportRecordClasses = (ConversionFlags & ConversionFlags.SupportRecordClasses) != 0;
 			astBuilder.SupportRecordStructs = (ConversionFlags & ConversionFlags.SupportRecordStructs) != 0;
+			astBuilder.SupportUnsignedRightShift = (ConversionFlags & ConversionFlags.SupportUnsignedRightShift) != 0;
+			astBuilder.SupportOperatorChecked = (ConversionFlags & ConversionFlags.SupportOperatorChecked) != 0;
 			return astBuilder;
 		}
 
@@ -268,9 +280,20 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				ConvertType(member.DeclaringType, writer, formattingPolicy);
 				writer.WriteToken(Roles.Dot, ".");
 			}
+			IType explicitInterfaceType = GetExplicitInterfaceType(member);
+			string name = member.Name;
+			if (explicitInterfaceType != null)
+			{
+				name = name.Substring(name.LastIndexOf('.') + 1);
+			}
 			switch (member.SymbolKind)
 			{
 				case SymbolKind.Indexer:
+					if (explicitInterfaceType != null)
+					{
+						ConvertType(explicitInterfaceType, writer, formattingPolicy);
+						writer.WriteToken(Roles.Dot, ".");
+					}
 					writer.WriteKeyword(Roles.Identifier, "this");
 					break;
 				case SymbolKind.Constructor:
@@ -281,35 +304,70 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					WriteQualifiedName(member.DeclaringType.Name, writer, formattingPolicy);
 					break;
 				case SymbolKind.Operator:
-					switch (member.Name)
+					switch (name)
 					{
 						case "op_Implicit":
 							writer.WriteKeyword(OperatorDeclaration.ImplicitRole, "implicit");
 							writer.Space();
+							if (explicitInterfaceType != null)
+							{
+								ConvertType(explicitInterfaceType, writer, formattingPolicy);
+								writer.WriteToken(Roles.Dot, ".");
+							}
 							writer.WriteKeyword(OperatorDeclaration.OperatorKeywordRole, "operator");
 							writer.Space();
 							ConvertType(member.ReturnType, writer, formattingPolicy);
 							break;
 						case "op_Explicit":
+						case "op_CheckedExplicit":
 							writer.WriteKeyword(OperatorDeclaration.ExplicitRole, "explicit");
 							writer.Space();
+							if (explicitInterfaceType != null)
+							{
+								ConvertType(explicitInterfaceType, writer, formattingPolicy);
+								writer.WriteToken(Roles.Dot, ".");
+							}
 							writer.WriteKeyword(OperatorDeclaration.OperatorKeywordRole, "operator");
 							writer.Space();
+							if (name == "op_CheckedExplicit")
+							{
+								writer.WriteToken(OperatorDeclaration.CheckedKeywordRole, "checked");
+								writer.Space();
+							}
 							ConvertType(member.ReturnType, writer, formattingPolicy);
 							break;
 						default:
+							if (explicitInterfaceType != null)
+							{
+								ConvertType(explicitInterfaceType, writer, formattingPolicy);
+								writer.WriteToken(Roles.Dot, ".");
+							}
 							writer.WriteKeyword(OperatorDeclaration.OperatorKeywordRole, "operator");
 							writer.Space();
-							var operatorType = OperatorDeclaration.GetOperatorType(member.Name);
-							if (operatorType.HasValue)
+							var operatorType = OperatorDeclaration.GetOperatorType(name);
+							if (operatorType.HasValue && !((ConversionFlags & ConversionFlags.SupportOperatorChecked) == 0 && OperatorDeclaration.IsChecked(operatorType.Value)))
+							{
+								if (OperatorDeclaration.IsChecked(operatorType.Value))
+								{
+									writer.WriteToken(OperatorDeclaration.CheckedKeywordRole, "checked");
+									writer.Space();
+								}
 								writer.WriteToken(OperatorDeclaration.GetRole(operatorType.Value), OperatorDeclaration.GetToken(operatorType.Value));
+							}
 							else
+							{
 								writer.WriteIdentifier(node.NameToken);
+							}
 							break;
 					}
 					break;
 				default:
-					writer.WriteIdentifier(Identifier.Create(member.Name));
+					if (explicitInterfaceType != null)
+					{
+						ConvertType(explicitInterfaceType, writer, formattingPolicy);
+						writer.WriteToken(Roles.Dot, ".");
+					}
+					writer.WriteIdentifier(Identifier.Create(name));
 					break;
 			}
 			WriteTypeParameters(node, writer, formattingPolicy);
@@ -379,6 +437,17 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			astBuilder.AlwaysUseShortTypeNames = (ConversionFlags & ConversionFlags.UseFullyQualifiedEntityNames) != ConversionFlags.UseFullyQualifiedEntityNames;
 			AstType astType = astBuilder.ConvertType(type);
 			astType.AcceptVisitor(new CSharpOutputVisitor(writer, formattingPolicy));
+		}
+
+		IType GetExplicitInterfaceType(IMember member)
+		{
+			if (member.IsExplicitInterfaceImplementation)
+			{
+				var baseMember = member.ExplicitlyImplementedInterfaceMembers.FirstOrDefault();
+				if (baseMember != null)
+					return baseMember.DeclaringType;
+			}
+			return null;
 		}
 
 		public string ConvertConstantValue(object constantValue)

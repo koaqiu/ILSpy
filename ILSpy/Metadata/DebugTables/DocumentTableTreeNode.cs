@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -18,84 +18,57 @@
 
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
-using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.DebugInfo;
 using ICSharpCode.Decompiler.Metadata;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
-	internal class DocumentTableTreeNode : DebugMetadataTableTreeNode
+	internal class DocumentTableTreeNode : DebugMetadataTableTreeNode<DocumentTableTreeNode.DocumentEntry>
 	{
-		private readonly bool isEmbedded;
-
-		public DocumentTableTreeNode(PEFile module, MetadataReader metadata, bool isEmbedded)
-			: base(HandleKind.Document, module, metadata)
+		public DocumentTableTreeNode(MetadataFile metadataFile)
+			: base(TableIndex.Document, metadataFile)
 		{
-			this.isEmbedded = isEmbedded;
 		}
 
-		public override object Text => $"30 Document ({metadata.GetTableRowCount(TableIndex.Document)})";
-
-		public override object Icon => Images.Literal;
-
-		public override bool View(ViewModels.TabPageModel tabPage)
+		protected override IReadOnlyList<DocumentEntry> LoadTable()
 		{
-			tabPage.Title = Text.ToString();
-			tabPage.SupportsLanguageSwitching = false;
-
-			var view = Helpers.PrepareDataGrid(tabPage, this);
 			var list = new List<DocumentEntry>();
-			DocumentEntry scrollTargetEntry = default;
-
-			foreach (var row in metadata.Documents)
+			foreach (var row in metadataFile.Metadata.Documents)
 			{
-				DocumentEntry entry = new DocumentEntry(metadata, isEmbedded, row);
-				if (entry.RID == scrollTarget)
-				{
-					scrollTargetEntry = entry;
-				}
-				list.Add(entry);
+				list.Add(new DocumentEntry(metadataFile, row));
 			}
 
-			view.ItemsSource = list;
-
-			tabPage.Content = view;
-
-			if (scrollTargetEntry.RID > 0)
-			{
-				ScrollItemIntoView(view, scrollTargetEntry);
-			}
-
-			return true;
+			return list;
 		}
 
-		struct DocumentEntry
+		internal readonly struct DocumentEntry
 		{
 			readonly int? offset;
-			readonly MetadataReader metadata;
+			readonly MetadataFile metadataFile;
 			readonly DocumentHandle handle;
 			readonly Document document;
 
 			public int RID => MetadataTokens.GetRowNumber(handle);
 
-			public object Offset => offset == null ? "n/a" : (object)offset;
+			public int Token => MetadataTokens.GetToken(handle);
 
-			public string Name => metadata.GetString(document.Name);
+			public object Offset => offset == null ? "n/a" : offset;
+
+			public string Name => metadataFile.Metadata.GetString(document.Name);
 
 			public string NameTooltip => $"{MetadataTokens.GetHeapOffset(document.Name):X} \"{Name}\"";
 
-			[StringFormat("X")]
+			[ColumnInfo("X8", Kind = ColumnKind.HeapOffset)]
 			public int HashAlgorithm => MetadataTokens.GetHeapOffset(document.HashAlgorithm);
 
 			public string HashAlgorithmTooltip {
 				get {
 					if (document.HashAlgorithm.IsNil)
 						return null;
-					Guid guid = metadata.GetGuid(document.HashAlgorithm);
+					Guid guid = metadataFile.Metadata.GetGuid(document.HashAlgorithm);
 					if (guid == KnownGuids.HashAlgorithmSHA1)
 						return "SHA1 [ff1816ec-aa5e-4d10-87f7-6f4963833460]";
 					if (guid == KnownGuids.HashAlgorithmSHA256)
@@ -104,26 +77,26 @@ namespace ICSharpCode.ILSpy.Metadata
 				}
 			}
 
-			[StringFormat("X")]
+			[ColumnInfo("X8", Kind = ColumnKind.HeapOffset)]
 			public int Hash => MetadataTokens.GetHeapOffset(document.Hash);
 
 			public string HashTooltip {
 				get {
 					if (document.Hash.IsNil)
 						return null;
-					System.Collections.Immutable.ImmutableArray<byte> token = metadata.GetBlobContent(document.Hash);
+					System.Collections.Immutable.ImmutableArray<byte> token = metadataFile.Metadata.GetBlobContent(document.Hash);
 					return token.ToHexString(token.Length);
 				}
 			}
 
-			[StringFormat("X")]
+			[ColumnInfo("X8", Kind = ColumnKind.HeapOffset)]
 			public int Language => MetadataTokens.GetHeapOffset(document.Language);
 
 			public string LanguageTooltip {
 				get {
 					if (document.Language.IsNil)
 						return null;
-					Guid guid = metadata.GetGuid(document.Language);
+					Guid guid = metadataFile.Metadata.GetGuid(document.Language);
 					if (guid == KnownGuids.CSharpLanguageGuid)
 						return "Visual C# [3f5162f8-07c6-11d3-9053-00c04fa302a1]";
 					if (guid == KnownGuids.VBLanguageGuid)
@@ -134,19 +107,14 @@ namespace ICSharpCode.ILSpy.Metadata
 				}
 			}
 
-			public DocumentEntry(MetadataReader metadata, bool isEmbedded, DocumentHandle handle)
+			public DocumentEntry(MetadataFile metadataFile, DocumentHandle handle)
 			{
-				this.offset = isEmbedded ? null : (int?)metadata.GetTableMetadataOffset(TableIndex.Document)
-					+ metadata.GetTableRowSize(TableIndex.Document) * (MetadataTokens.GetRowNumber(handle) - 1);
-				this.metadata = metadata;
+				this.metadataFile = metadataFile;
+				this.offset = metadataFile.IsEmbedded ? null : (int?)metadataFile.Metadata.GetTableMetadataOffset(TableIndex.Document)
+					+ metadataFile.Metadata.GetTableRowSize(TableIndex.Document) * (MetadataTokens.GetRowNumber(handle) - 1);
 				this.handle = handle;
-				this.document = metadata.GetDocument(handle);
+				this.document = metadataFile.Metadata.GetDocument(handle);
 			}
-		}
-
-		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-		{
-			language.WriteCommentLine(output, "Document");
 		}
 	}
 }

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -21,60 +21,31 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
-using ICSharpCode.Decompiler;
-using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.Metadata;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
-	internal class ExportedTypeTableTreeNode : MetadataTableTreeNode
+	internal class ExportedTypeTableTreeNode : MetadataTableTreeNode<ExportedTypeTableTreeNode.ExportedTypeEntry>
 	{
-		public ExportedTypeTableTreeNode(PEFile module)
-			: base(HandleKind.ExportedType, module)
+		public ExportedTypeTableTreeNode(MetadataFile metadataFile)
+			: base(TableIndex.ExportedType, metadataFile)
 		{
 		}
 
-		public override object Text => $"27 ExportedType ({module.Metadata.GetTableRowCount(TableIndex.ExportedType)})";
-
-		public override object Icon => Images.Literal;
-
-		public override bool View(ViewModels.TabPageModel tabPage)
+		protected override IReadOnlyList<ExportedTypeEntry> LoadTable()
 		{
-			tabPage.Title = Text.ToString();
-			tabPage.SupportsLanguageSwitching = false;
-
-			var view = Helpers.PrepareDataGrid(tabPage, this);
-			var metadata = module.Metadata;
 			var list = new List<ExportedTypeEntry>();
-			ExportedTypeEntry scrollTargetEntry = default;
-
+			var metadata = metadataFile.Metadata;
 			foreach (var row in metadata.ExportedTypes)
 			{
-				ExportedTypeEntry entry = new ExportedTypeEntry(module.Reader.PEHeaders.MetadataStartOffset, module, row, metadata.GetExportedType(row));
-				if (entry.RID == this.scrollTarget)
-				{
-					scrollTargetEntry = entry;
-				}
-				list.Add(entry);
+				list.Add(new ExportedTypeEntry(metadataFile, row, metadata.GetExportedType(row)));
 			}
-
-			view.ItemsSource = list;
-
-			tabPage.Content = view;
-
-			if (scrollTargetEntry.RID > 0)
-			{
-				ScrollItemIntoView(view, scrollTargetEntry);
-			}
-
-			return true;
+			return list;
 		}
 
-		struct ExportedTypeEntry
+		internal struct ExportedTypeEntry
 		{
-			readonly int metadataOffset;
-			readonly PEFile module;
-			readonly MetadataReader metadata;
+			readonly MetadataFile metadataFile;
 			readonly ExportedTypeHandle handle;
 			readonly ExportedType type;
 
@@ -82,11 +53,11 @@ namespace ICSharpCode.ILSpy.Metadata
 
 			public int Token => MetadataTokens.GetToken(handle);
 
-			public int Offset => metadataOffset
-				+ metadata.GetTableMetadataOffset(TableIndex.ExportedType)
-				+ metadata.GetTableRowSize(TableIndex.ExportedType) * (RID - 1);
+			public int Offset => metadataFile.MetadataOffset
+				+ metadataFile.Metadata.GetTableMetadataOffset(TableIndex.ExportedType)
+				+ metadataFile.Metadata.GetTableRowSize(TableIndex.ExportedType) * (RID - 1);
 
-			[StringFormat("X8")]
+			[ColumnInfo("X8", Kind = ColumnKind.Other)]
 			public TypeAttributes Attributes => type.Attributes;
 
 			const TypeAttributes otherFlagsMask = ~(TypeAttributes.VisibilityMask | TypeAttributes.LayoutMask | TypeAttributes.ClassSemanticsMask | TypeAttributes.StringFormatMask | TypeAttributes.CustomFormatMask);
@@ -104,45 +75,30 @@ namespace ICSharpCode.ILSpy.Metadata
 
 			public string TypeNameTooltip => $"{MetadataTokens.GetHeapOffset(type.Name):X} \"{TypeName}\"";
 
-			public string TypeName => metadata.GetString(type.Name);
+			public string TypeName => metadataFile.Metadata.GetString(type.Name);
 
 			public string TypeNamespaceTooltip => $"{MetadataTokens.GetHeapOffset(type.Namespace):X} \"{TypeNamespace}\"";
 
-			public string TypeNamespace => metadata.GetString(type.Namespace);
+			public string TypeNamespace => metadataFile.Metadata.GetString(type.Namespace);
 
-			[StringFormat("X8")]
-			[LinkToTable]
+			[ColumnInfo("X8", Kind = ColumnKind.Token)]
 			public int Implementation => MetadataTokens.GetToken(type.Implementation);
 
 			public void OnImplementationClick()
 			{
-				MainWindow.Instance.JumpToReference(new EntityReference(module, type.Implementation, protocol: "metadata"));
+				MessageBus.Send(this, new NavigateToReferenceEventArgs(new EntityReference(metadataFile, type.Implementation, protocol: "metadata")));
 			}
 
-			public string ImplementationTooltip {
-				get {
-					if (type.Implementation.IsNil)
-						return null;
-					ITextOutput output = new PlainTextOutput();
-					var context = new MetadataGenericContext(default(TypeDefinitionHandle), module);
-					type.Implementation.WriteTo(module, output, context);
-					return output.ToString();
-				}
-			}
+			string implementationTooltip;
+			public string ImplementationTooltip => GenerateTooltip(ref implementationTooltip, metadataFile, type.Implementation);
 
-			public ExportedTypeEntry(int metadataOffset, PEFile module, ExportedTypeHandle handle, ExportedType type)
+			public ExportedTypeEntry(MetadataFile metadataFile, ExportedTypeHandle handle, ExportedType type)
 			{
-				this.metadataOffset = metadataOffset;
-				this.module = module;
-				this.metadata = module.Metadata;
+				this.metadataFile = metadataFile;
 				this.handle = handle;
 				this.type = type;
+				this.implementationTooltip = null;
 			}
-		}
-
-		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-		{
-			language.WriteCommentLine(output, "ExportedType");
 		}
 	}
 }

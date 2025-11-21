@@ -186,6 +186,9 @@ Are you sure you want to continue?</value>
   <data name="Checking" xml:space="preserve">
     <value>Checking...</value>
   </data>
+  <data name="ClearAssemblyList" xml:space="preserve">
+    <value>Clear assembly list</value>
+  </data>
   <data name="Close" xml:space="preserve">
     <value>Close</value>
   </data>
@@ -207,6 +210,9 @@ Are you sure you want to continue?</value>
   <data name="Create" xml:space="preserve">
     <value>Create</value>
   </data>
+  <data name="CreatingDiagram" xml:space="preserve">
+    <value>Creating diagram...</value>
+  </data>
   <data name="CultureLabel" xml:space="preserve">
     <value>Culture</value>
   </data>
@@ -222,14 +228,14 @@ Are you sure you want to continue?</value>
   <data name="DEBUGDumpPDBAsXML" xml:space="preserve">
     <value>DEBUG -- Dump PDB as XML</value>
   </data>
-  <data name="DarkMode" xml:space="preserve">
-    <value>Dark Mode</value>
-  </data>
   <data name="DebugSteps" xml:space="preserve">
     <value>Debug Steps</value>
   </data>
   <data name="DebugThisStep" xml:space="preserve">
     <value>Debug this step</value>
+  </data>
+  <data name="DecodeCustomAttributeBlobs" xml:space="preserve">
+    <value>Decode custom attribute blobs</value>
   </data>
   <data name="DecompilationCompleteInF1Seconds" xml:space="preserve">
     <value>Decompilation complete in {0:F1} seconds.</value>
@@ -261,6 +267,9 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.AlwaysCastTargetsOfExplicitInterfaceImplementationCalls" xml:space="preserve">
     <value>Always cast targets of explicit interface implementation calls</value>
   </data>
+  <data name="DecompilerSettings.AlwaysMoveInitializer" xml:space="preserve">
+    <value>Always move field initializers from constructors to declarations</value>
+  </data>
   <data name="DecompilerSettings.AlwaysQualifyMemberReferences" xml:space="preserve">
     <value>Always qualify member references</value>
   </data>
@@ -281,6 +290,15 @@ Are you sure you want to continue?</value>
   </data>
   <data name="DecompilerSettings.AsyncEnumerator" xml:space="preserve">
     <value>Decompile async IAsyncEnumerator methods</value>
+  </data>
+  <data name="DecompilerSettings.AutoLoadAssemblyReferences" xml:space="preserve">
+    <value>Automatically load assembly references</value>
+  </data>
+  <data name="DecompilerSettings.CheckForOverflowUnderflow" xml:space="preserve">
+    <value>Check for overflow and underflow in operators</value>
+  </data>
+  <data name="DecompilerSettings.CheckedOperators" xml:space="preserve">
+    <value>User-defined checked operators</value>
   </data>
   <data name="DecompilerSettings.DecompileAnonymousMethodsLambdas" xml:space="preserve">
     <value>Decompile anonymous methods/lambdas</value>
@@ -315,6 +333,9 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.DecompileForEachWithGetEnumeratorExtension" xml:space="preserve">
     <value>Decompile foreach statements with GetEnumerator extension methods</value>
   </data>
+  <data name="DecompilerSettings.DecompileParamsCollections" xml:space="preserve">
+    <value>Decompile params collections</value>
+  </data>
   <data name="DecompilerSettings.DecompileUseOfTheDynamicType" xml:space="preserve">
     <value>Decompile use of the 'dynamic' type</value>
   </data>
@@ -345,6 +366,9 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.DoWhileStatement" xml:space="preserve">
     <value>Transform to do-while, if possible</value>
   </data>
+  <data name="DecompilerSettings.ExpandParamsArguments" xml:space="preserve">
+    <value>Expand params arguments by removing explicit array creation</value>
+  </data>
   <data name="DecompilerSettings.FSpecificOptions" xml:space="preserve">
     <value>F#-specific options</value>
   </data>
@@ -372,6 +396,9 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.IntroduceLocalFunctions" xml:space="preserve">
     <value>Introduce local functions</value>
   </data>
+  <data name="DecompilerSettings.IntroducePrivateProtectedAccessibility" xml:space="preserve">
+    <value>Introduce 'private protected' accessibility</value>
+  </data>
   <data name="DecompilerSettings.IntroduceStaticLocalFunctions" xml:space="preserve">
     <value>Introduce static local functions</value>
   </data>
@@ -384,9 +411,6 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.IsUnmanagedAttributeOnTypeParametersShouldBeReplacedWithUnmanagedConstraints" xml:space="preserve">
     <value>IsUnmanagedAttribute on type parameters should be replaced with 'unmanaged' constraints</value>
   </data>
-  <data name="DecompilerSettings.LifetimeAnnotations" xml:space="preserve">
-    <value>'scoped' lifetime annotation</value>
-  </data>
   <data name="DecompilerSettings.NativeIntegers" xml:space="preserve">
     <value>Use nint/nuint types</value>
   </data>
@@ -396,14 +420,17 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.NullableReferenceTypes" xml:space="preserve">
     <value>Nullable reference types</value>
   </data>
+  <data name="DecompilerSettings.NumericIntPtr" xml:space="preserve">
+    <value>Treat (U)IntPtr as n(u)int</value>
+  </data>
   <data name="DecompilerSettings.ObjectCollectionInitializerExpressions" xml:space="preserve">
     <value>Object/collection initializer expressions</value>
   </data>
   <data name="DecompilerSettings.Other" xml:space="preserve">
     <value>Other</value>
   </data>
-  <data name="DecompilerSettings.ParameterNullCheck" xml:space="preserve">
-    <value>Use parameter null checking</value>
+  <data name="DecompilerSettings.PatternCombinators" xml:space="preserve">
+    <value>Pattern combinators (and, or, not)</value>
   </data>
   <data name="DecompilerSettings.PatternMatching" xml:space="preserve">
     <value>Use pattern matching expressions</value>
@@ -423,6 +450,15 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.RecordStructs" xml:space="preserve">
     <value>Record structs</value>
   </data>
+  <data name="DecompilerSettings.RecursivePatternMatching" xml:space="preserve">
+    <value>Recursive pattern matching</value>
+  </data>
+  <data name="DecompilerSettings.RefReadOnlyParameters" xml:space="preserve">
+    <value>'ref readonly' parameters</value>
+  </data>
+  <data name="DecompilerSettings.RelationalPatterns" xml:space="preserve">
+    <value>Relational patterns</value>
+  </data>
   <data name="DecompilerSettings.RemoveDeadAndSideEffectFreeCodeUseWithCaution" xml:space="preserve">
     <value>Remove dead and side effect free code (use with caution!)</value>
   </data>
@@ -432,11 +468,20 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.RemoveOptionalArgumentsIfPossible" xml:space="preserve">
     <value>Remove optional arguments, if possible</value>
   </data>
+  <data name="DecompilerSettings.RequiredMembers" xml:space="preserve">
+    <value>Required members</value>
+  </data>
+  <data name="DecompilerSettings.ScopedRef" xml:space="preserve">
+    <value>'scoped' lifetime annotation</value>
+  </data>
   <data name="DecompilerSettings.SeparateLocalVariableDeclarations" xml:space="preserve">
     <value>Separate local variable declarations and initializers (int x = 5; -&gt; int x; x = 5;), if possible</value>
   </data>
   <data name="DecompilerSettings.ShowInfoFromDebugSymbolsIfAvailable" xml:space="preserve">
     <value>Show info from debug symbols, if available</value>
+  </data>
+  <data name="DecompilerSettings.SortCustomAttributes" xml:space="preserve">
+    <value>Sort custom attributes</value>
   </data>
   <data name="DecompilerSettings.SparseIntegerSwitch" xml:space="preserve">
     <value>Detect switch on integer even if IL code does not use a jump table</value>
@@ -444,8 +489,17 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.StringConcat" xml:space="preserve">
     <value>Decompile 'string.Concat(a, b)' calls into 'a + b'</value>
   </data>
+  <data name="DecompilerSettings.StructDefaultConstructorsAndFieldInitializers" xml:space="preserve">
+    <value>Use struct field initializers and default constructors</value>
+  </data>
   <data name="DecompilerSettings.SwitchExpressions" xml:space="preserve">
     <value>Switch expressions</value>
+  </data>
+  <data name="DecompilerSettings.SwitchOnReadOnlySpanChar" xml:space="preserve">
+    <value>Use switch on (ReadOnly)Span&lt;char&gt;</value>
+  </data>
+  <data name="DecompilerSettings.UnsignedRightShift" xml:space="preserve">
+    <value>Unsigned right shift (&gt;&gt;&gt;)</value>
   </data>
   <data name="DecompilerSettings.UseDiscards" xml:space="preserve">
     <value>Use discards</value>
@@ -483,14 +537,23 @@ Are you sure you want to continue?</value>
   <data name="DecompilerSettings.UseNonTrailingNamedArguments" xml:space="preserve">
     <value>Use non-trailing named arguments</value>
   </data>
+  <data name="DecompilerSettings.UseObjectCreationOfGenericTypeParameter" xml:space="preserve">
+    <value>Use new T() instead of Activator.CreateInstance&lt;T&gt;</value>
+  </data>
   <data name="DecompilerSettings.UseOutVariableDeclarations" xml:space="preserve">
     <value>Use out variable declarations</value>
   </data>
   <data name="DecompilerSettings.UsePatternBasedFixedStatement" xml:space="preserve">
     <value>Use pattern-based fixed statement</value>
   </data>
+  <data name="DecompilerSettings.UsePrimaryConstructorDecompilerSettings.SyntaxForNonRecordTypes" xml:space="preserve">
+    <value>Use primary constructor syntax for non-record types</value>
+  </data>
   <data name="DecompilerSettings.UsePrimaryConstructorSyntax" xml:space="preserve">
-    <value>Use primary constructor  syntax with records</value>
+    <value>Use primary constructor syntax with records</value>
+  </data>
+  <data name="DecompilerSettings.UsePrimaryConstructorSyntaxForNonRecordTypes" xml:space="preserve">
+    <value>Use primary constructor syntax for non-record types</value>
   </data>
   <data name="DecompilerSettings.UseRefLocalsForAccurateOrderOfEvaluation" xml:space="preserve">
     <value>Use ref locals to accurately represent order of evaluation</value>
@@ -512,6 +575,9 @@ Are you sure you want to continue?</value>
   </data>
   <data name="DecompilerSettings.UseVariableNamesFromDebugSymbolsIfAvailable" xml:space="preserve">
     <value>Use variable names from debug symbols, if available</value>
+  </data>
+  <data name="DecompilerSettings.Utf8StringLiterals" xml:space="preserve">
+    <value>UTF-8 string literals</value>
   </data>
   <data name="DecompilerSettings.VBSpecificOptions" xml:space="preserve">
     <value>VB-specific options</value>
@@ -540,6 +606,9 @@ Are you sure you want to continue?</value>
   <data name="DisplaySettingsPanel_Font" xml:space="preserve">
     <value>Font:</value>
   </data>
+  <data name="DisplaySettingsPanel_Theme" xml:space="preserve">
+    <value>Theme:</value>
+  </data>
   <data name="Download" xml:space="preserve">
     <value>Download</value>
   </data>
@@ -551,6 +620,9 @@ Are you sure you want to continue?</value>
   </data>
   <data name="EnableFoldingBlocksBraces" xml:space="preserve">
     <value>Enable folding on all blocks in braces</value>
+  </data>
+  <data name="EnableSmoothScrolling" xml:space="preserve">
+    <value>Enable smooth scrolling</value>
   </data>
   <data name="EnableWordWrap" xml:space="preserve">
     <value>Enable word wrap</value>
@@ -566,6 +638,9 @@ Are you sure you want to continue?</value>
   </data>
   <data name="ExpandUsingDeclarationsAfterDecompilation" xml:space="preserve">
     <value>Expand using declarations after decompilation</value>
+  </data>
+  <data name="ExtractAllPackageEntries" xml:space="preserve">
+    <value>Extract all package entries</value>
   </data>
   <data name="ExtractPackageEntry" xml:space="preserve">
     <value>Extract package entry</value>
@@ -641,6 +716,9 @@ Are you sure you want to continue?</value>
   </data>
   <data name="ManageAssembly_Lists" xml:space="preserve">
     <value>Manage assembly _lists...</value>
+  </data>
+  <data name="Metadata" xml:space="preserve">
+    <value>Metadata</value>
   </data>
   <data name="Misc" xml:space="preserve">
     <value>Misc</value>
@@ -904,6 +982,9 @@ Do you want to continue?</value>
   <data name="TabSize" xml:space="preserve">
     <value>Tab size:</value>
   </data>
+  <data name="Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
   <data name="ToggleFolding" xml:space="preserve">
     <value>Toggle All Folding</value>
   </data>
@@ -993,6 +1074,9 @@ Do you want to continue?</value>
   </data>
   <data name="_CollapseTreeNodes" xml:space="preserve">
     <value>_Collapse all tree nodes</value>
+  </data>
+  <data name="_CreateDiagram" xml:space="preserve">
+    <value>Create _Diagram...</value>
   </data>
   <data name="_File" xml:space="preserve">
     <value>_File</value>

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -42,18 +42,18 @@ namespace ICSharpCode.Decompiler
 
 		public IEntity DecompiledEntity { get; }
 		public IModule Module { get; }
-		public PEFile File { get; }
+		public MetadataFile File { get; }
 
 		public DecompilerException(MetadataModule module, IEntity decompiledEntity,
 			Exception innerException, string message = null)
 			: base(message ?? GetDefaultMessage(decompiledEntity), innerException)
 		{
-			this.File = module.PEFile;
+			this.File = module.MetadataFile;
 			this.Module = module;
 			this.DecompiledEntity = decompiledEntity;
 		}
 
-		public DecompilerException(PEFile file, string message, Exception innerException)
+		public DecompilerException(MetadataFile file, string message, Exception innerException)
 			: base(message, innerException)
 		{
 			this.File = file;

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection.Metadata;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.CSharp.Syntax.PatternMatching;
@@ -760,15 +761,21 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		{
 			var parent = identifier.Parent;
 			var mrr = parent.Annotation<MemberResolveResult>();
-			var field = mrr?.Member as IField;
-			if (field == null)
+			if (mrr?.Member is not IField field || field.Accessibility != Accessibility.Private)
 				return null;
-			var @event = field.DeclaringType.GetEvents(ev => ev.Name == field.Name, GetMemberOptions.IgnoreInheritedMembers).SingleOrDefault();
-			if (@event != null && currentMethod.AccessorOwner != @event)
+			var module = field.ParentModule as MetadataModule;
+			if (module == null)
+				return null;
+			if (module.MetadataFile.PropertyAndEventBackingFieldLookup.IsEventBackingField((FieldDefinitionHandle)field.MetadataToken, out var eventHandle))
 			{
-				parent.RemoveAnnotations<MemberResolveResult>();
-				parent.AddAnnotation(new MemberResolveResult(mrr.TargetResult, @event));
-				return identifier;
+				var eventDef = module.ResolveEntity(eventHandle) as IEvent;
+				if (eventDef != null && currentMethod.AccessorOwner != eventDef)
+				{
+					parent.RemoveAnnotations<MemberResolveResult>();
+					parent.AddAnnotation(new MemberResolveResult(mrr.TargetResult, eventDef));
+					identifier.Name = eventDef.Name;
+					return identifier;
+				}
 			}
 			return null;
 		}
@@ -907,20 +914,14 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			if (!m.Success)
 				return false;
 			Expression fieldExpression = m.Get<Expression>("field").Single();
-			// field name must match event name
-			switch (fieldExpression)
-			{
-				case IdentifierExpression identifier:
-					if (identifier.Identifier != ev.Name)
-						return false;
-					break;
-				case MemberReferenceExpression memberRef:
-					if (memberRef.MemberName != ev.Name)
-						return false;
-					break;
-				default:
-					return false;
-			}
+			IField eventField = fieldExpression.GetSymbol() as IField;
+			if (eventField == null)
+				return false;
+			var module = eventField.ParentModule as MetadataModule;
+			if (module == null)
+				return false;
+			if (!module.MetadataFile.PropertyAndEventBackingFieldLookup.IsEventBackingField((FieldDefinitionHandle)eventField.MetadataToken, out _))
+				return false;
 			var returnType = ev.ReturnType.GetResolveResult().Type;
 			var eventType = m.Get<AstType>("type").Single().GetResolveResult().Type;
 			// ignore tuple element names, dynamic and nullability
@@ -994,7 +995,9 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			if (!ev.PrivateImplementationType.IsNull)
 				return null;
 			const Modifiers withoutBody = Modifiers.Abstract | Modifiers.Extern;
-			if ((ev.Modifiers & withoutBody) == 0 && ev.GetSymbol() is IEvent symbol)
+			if (ev.GetSymbol() is not IEvent symbol)
+				return null;
+			if ((ev.Modifiers & withoutBody) == 0)
 			{
 				if (!CheckAutomaticEventV4AggressivelyInlined(ev) && !CheckAutomaticEventV4(ev) && !CheckAutomaticEventV2(ev) && !CheckAutomaticEventV4MCS(ev))
 					return null;
@@ -1013,7 +1016,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			ed.CopyAnnotationsFrom(ev);
 
 			var fieldDecl = ev.Parent?.Children.OfType<FieldDeclaration>()
-				.FirstOrDefault(fd => fd.Variables.Single().Name == ev.Name);
+				.FirstOrDefault(IsEventBackingField);
 			if (fieldDecl != null)
 			{
 				fieldDecl.Remove();
@@ -1028,6 +1031,19 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 
 			ev.ReplaceWith(ed);
 			return ed;
+
+			bool IsEventBackingField(FieldDeclaration fd)
+			{
+				if (fd.Variables.Count > 1)
+					return false;
+				if (fd.GetSymbol() is not IField f)
+					return false;
+				if (f.ParentModule is not MetadataModule module)
+					return false;
+				return f.Accessibility == Accessibility.Private
+					&& symbol.ReturnType.Equals(f.ReturnType)
+					&& module.MetadataFile.PropertyAndEventBackingFieldLookup.IsEventBackingField((FieldDefinitionHandle)f.MetadataToken, out _);
+			}
 		}
 		#endregion
 
@@ -1161,6 +1177,17 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					break;
 			}
 			return base.VisitBinaryOperatorExpression(expr);
+		}
+
+		public override AstNode VisitUnaryOperatorExpression(UnaryOperatorExpression expr)
+		{
+			if (expr.Operator == UnaryOperatorType.Not && expr.Expression is BinaryOperatorExpression { Operator: BinaryOperatorType.Equality } binary)
+			{
+				binary.Operator = BinaryOperatorType.InEquality;
+				expr.ReplaceWith(binary.Detach());
+				return VisitBinaryOperatorExpression(binary);
+			}
+			return base.VisitUnaryOperatorExpression(expr);
 		}
 		#endregion
 

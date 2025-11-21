@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2017 Siegfried Pammer
+// Copyright (c) 2017 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -92,8 +92,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			ifInstruction.Condition = Comp.LogicNot(ifInstruction.Condition);
 			ifInstruction.FalseInst = ifInstruction.TrueInst;
 			//move the rest of the body into a new block
-			loopBody = ConditionDetection.ExtractBlock(loop.EntryPoint, 1, loop.EntryPoint.Instructions.Count);
+			loopBody = new Block();
+			loopBody.AddRef();
+			ConditionDetection.ExtractBlock(loop.EntryPoint, 1, loop.EntryPoint.Instructions.Count, loopBody);
 			loop.Blocks.Insert(1, loopBody);
+			loopBody.ReleaseRef();
 			if (!loopBody.HasFlag(InstructionFlags.EndPointUnreachable))
 				loopBody.Instructions.Add(new Leave(loop));
 

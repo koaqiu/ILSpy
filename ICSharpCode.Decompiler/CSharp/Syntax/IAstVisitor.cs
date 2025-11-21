@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -15,7 +15,6 @@
 // FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
-
 
 namespace ICSharpCode.Decompiler.CSharp.Syntax
 {
@@ -36,6 +35,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		void VisitCheckedExpression(CheckedExpression checkedExpression);
 		void VisitConditionalExpression(ConditionalExpression conditionalExpression);
 		void VisitDeclarationExpression(DeclarationExpression declarationExpression);
+		void VisitRecursivePatternExpression(RecursivePatternExpression recursivePatternExpression);
 		void VisitDefaultValueExpression(DefaultValueExpression defaultValueExpression);
 		void VisitDirectionExpression(DirectionExpression directionExpression);
 		void VisitIdentifierExpression(IdentifierExpression identifierExpression);
@@ -135,6 +135,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		void VisitVariableInitializer(VariableInitializer variableInitializer);
 		void VisitFixedFieldDeclaration(FixedFieldDeclaration fixedFieldDeclaration);
 		void VisitFixedVariableInitializer(FixedVariableInitializer fixedVariableInitializer);
+		void VisitExtensionDeclaration(ExtensionDeclaration extensionDeclaration);
 
 		void VisitSyntaxTree(SyntaxTree syntaxTree);
 		void VisitSimpleType(SimpleType simpleType);
@@ -184,6 +185,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		S VisitCheckedExpression(CheckedExpression checkedExpression);
 		S VisitConditionalExpression(ConditionalExpression conditionalExpression);
 		S VisitDeclarationExpression(DeclarationExpression declarationExpression);
+		S VisitRecursivePatternExpression(RecursivePatternExpression recursivePatternExpression);
 		S VisitDefaultValueExpression(DefaultValueExpression defaultValueExpression);
 		S VisitDirectionExpression(DirectionExpression directionExpression);
 		S VisitIdentifierExpression(IdentifierExpression identifierExpression);
@@ -283,6 +285,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		S VisitVariableInitializer(VariableInitializer variableInitializer);
 		S VisitFixedFieldDeclaration(FixedFieldDeclaration fixedFieldDeclaration);
 		S VisitFixedVariableInitializer(FixedVariableInitializer fixedVariableInitializer);
+		S VisitExtensionDeclaration(ExtensionDeclaration extensionDeclaration);
 
 		S VisitSyntaxTree(SyntaxTree syntaxTree);
 		S VisitSimpleType(SimpleType simpleType);
@@ -332,6 +335,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		S VisitCheckedExpression(CheckedExpression checkedExpression, T data);
 		S VisitConditionalExpression(ConditionalExpression conditionalExpression, T data);
 		S VisitDeclarationExpression(DeclarationExpression declarationExpression, T data);
+		S VisitRecursivePatternExpression(RecursivePatternExpression recursivePatternExpression, T data);
 		S VisitDefaultValueExpression(DefaultValueExpression defaultValueExpression, T data);
 		S VisitDirectionExpression(DirectionExpression directionExpression, T data);
 		S VisitIdentifierExpression(IdentifierExpression identifierExpression, T data);
@@ -431,6 +435,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		S VisitVariableInitializer(VariableInitializer variableInitializer, T data);
 		S VisitFixedFieldDeclaration(FixedFieldDeclaration fixedFieldDeclaration, T data);
 		S VisitFixedVariableInitializer(FixedVariableInitializer fixedVariableInitializer, T data);
+		S VisitExtensionDeclaration(ExtensionDeclaration extensionDeclaration, T data);
 
 		S VisitSyntaxTree(SyntaxTree syntaxTree, T data);
 		S VisitSimpleType(SimpleType simpleType, T data);

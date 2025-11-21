@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -16,62 +16,36 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System;
 using System.Collections.Generic;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
-using ICSharpCode.Decompiler;
-using ICSharpCode.Decompiler.Disassembler;
-using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.Metadata;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
-	internal class FieldMarshalTableTreeNode : MetadataTableTreeNode
+	internal class FieldMarshalTableTreeNode : MetadataTableTreeNode<FieldMarshalTableTreeNode.FieldMarshalEntry>
 	{
-		public FieldMarshalTableTreeNode(PEFile module)
-			: base((HandleKind)0x0D, module)
+		public FieldMarshalTableTreeNode(MetadataFile metadataFile)
+			: base(TableIndex.FieldMarshal, metadataFile)
 		{
 		}
 
-		public override object Text => $"0D FieldMarshal ({module.Metadata.GetTableRowCount(TableIndex.FieldMarshal)})";
-
-		public override object Icon => Images.Literal;
-
-		public unsafe override bool View(ViewModels.TabPageModel tabPage)
+		protected override IReadOnlyList<FieldMarshalEntry> LoadTable()
 		{
-			tabPage.Title = Text.ToString();
-			tabPage.SupportsLanguageSwitching = false;
-
-			var view = Helpers.PrepareDataGrid(tabPage, this);
-			var metadata = module.Metadata;
-
 			var list = new List<FieldMarshalEntry>();
-			FieldMarshalEntry scrollTargetEntry = default;
 
+			var metadata = metadataFile.Metadata;
 			var length = metadata.GetTableRowCount(TableIndex.FieldMarshal);
-			byte* ptr = metadata.MetadataPointer;
-			int metadataOffset = module.Reader.PEHeaders.MetadataStartOffset;
+			ReadOnlySpan<byte> ptr = metadata.AsReadOnlySpan();
+			int hasFieldMarshalRefSize = metadata.ComputeCodedTokenSize(32768, TableMask.Field | TableMask.Param);
+			int blobHeapSize = metadata.GetHeapSize(HeapIndex.Blob) < ushort.MaxValue ? 2 : 4;
 			for (int rid = 1; rid <= length; rid++)
 			{
-				FieldMarshalEntry entry = new FieldMarshalEntry(module, ptr, metadataOffset, rid);
-				if (entry.RID == this.scrollTarget)
-				{
-					scrollTargetEntry = entry;
-				}
-				list.Add(entry);
+				list.Add(new FieldMarshalEntry(metadataFile, ptr, rid, blobHeapSize, hasFieldMarshalRefSize));
 			}
-
-			view.ItemsSource = list;
-
-			tabPage.Content = view;
-
-			if (scrollTargetEntry.RID > 0)
-			{
-				ScrollItemIntoView(view, scrollTargetEntry);
-			}
-
-			return true;
+			return list;
 		}
 
 		readonly struct FieldMarshal
@@ -79,63 +53,46 @@ namespace ICSharpCode.ILSpy.Metadata
 			public readonly BlobHandle NativeType;
 			public readonly EntityHandle Parent;
 
-			public unsafe FieldMarshal(byte* ptr, int blobHeapSize, int hasFieldMarshalRefSize)
+			public FieldMarshal(ReadOnlySpan<byte> ptr, int blobHeapSize, int hasFieldMarshalRefSize)
 			{
-				Parent = Helpers.FromHasFieldMarshalTag((uint)Helpers.GetValue(ptr, hasFieldMarshalRefSize));
-				NativeType = MetadataTokens.BlobHandle(Helpers.GetValue(ptr + hasFieldMarshalRefSize, blobHeapSize));
+				Parent = Helpers.FromHasFieldMarshalTag((uint)Helpers.GetValueLittleEndian(ptr, hasFieldMarshalRefSize));
+				NativeType = MetadataTokens.BlobHandle(Helpers.GetValueLittleEndian(ptr.Slice(hasFieldMarshalRefSize, blobHeapSize)));
 			}
 		}
 
-		unsafe struct FieldMarshalEntry
+		internal struct FieldMarshalEntry
 		{
-			readonly PEFile module;
-			readonly MetadataReader metadata;
+			readonly MetadataFile metadataFile;
 			readonly FieldMarshal fieldMarshal;
 
 			public int RID { get; }
-
 			public int Token => 0x0D000000 | RID;
-
 			public int Offset { get; }
 
-			[StringFormat("X8")]
-			[LinkToTable]
+			[ColumnInfo("X8", Kind = ColumnKind.Token)]
 			public int Parent => MetadataTokens.GetToken(fieldMarshal.Parent);
 
 			public void OnParentClick()
 			{
-				MainWindow.Instance.JumpToReference(new EntityReference(module, fieldMarshal.Parent, protocol: "metadata"));
+				MessageBus.Send(this, new NavigateToReferenceEventArgs(new EntityReference(metadataFile, fieldMarshal.Parent, protocol: "metadata")));
 			}
 
-			public string ParentTooltip {
-				get {
-					ITextOutput output = new PlainTextOutput();
-					var context = new Decompiler.Metadata.MetadataGenericContext(default(TypeDefinitionHandle), module);
-					((EntityHandle)fieldMarshal.Parent).WriteTo(module, output, context);
-					return output.ToString();
-				}
-			}
+			string parentTooltip;
+			public string ParentTooltip => GenerateTooltip(ref parentTooltip, metadataFile, fieldMarshal.Parent);
 
-			[StringFormat("X")]
+			[ColumnInfo("X8", Kind = ColumnKind.HeapOffset)]
 			public int NativeType => MetadataTokens.GetHeapOffset(fieldMarshal.NativeType);
 
-			public FieldMarshalEntry(PEFile module, byte* ptr, int metadataOffset, int row)
+			public FieldMarshalEntry(MetadataFile metadataFile, ReadOnlySpan<byte> ptr, int row, int blobHeapSize, int hasFieldMarshalRefSize)
 			{
-				this.module = module;
-				this.metadata = module.Metadata;
+				this.metadataFile = metadataFile;
 				this.RID = row;
-				var rowOffset = metadata.GetTableMetadataOffset(TableIndex.FieldMarshal)
-					+ metadata.GetTableRowSize(TableIndex.FieldMarshal) * (row - 1);
-				this.Offset = metadataOffset + rowOffset;
-				int hasFieldMarshalRefSize = metadata.ComputeCodedTokenSize(32768, TableMask.Field | TableMask.Param);
-				int blobHeapSize = metadata.GetHeapSize(HeapIndex.Blob) < ushort.MaxValue ? 2 : 4;
-				this.fieldMarshal = new FieldMarshal(ptr + rowOffset, blobHeapSize, hasFieldMarshalRefSize);
+				var rowOffset = metadataFile.Metadata.GetTableMetadataOffset(TableIndex.FieldMarshal)
+					+ metadataFile.Metadata.GetTableRowSize(TableIndex.FieldMarshal) * (row - 1);
+				this.Offset = metadataFile.MetadataOffset + rowOffset;
+				this.fieldMarshal = new FieldMarshal(ptr.Slice(rowOffset), blobHeapSize, hasFieldMarshalRefSize);
+				this.parentTooltip = null;
 			}
-		}
-
-		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-		{
-			language.WriteCommentLine(output, "FieldMarshals");
 		}
 	}
 }

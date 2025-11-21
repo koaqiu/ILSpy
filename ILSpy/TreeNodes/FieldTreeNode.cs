@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -43,8 +43,8 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		private IField GetFieldDefinition()
 		{
-			return ((MetadataModule)FieldDefinition.ParentModule.PEFile
-				?.GetTypeSystemWithCurrentOptionsOrNull()
+			return ((MetadataModule)FieldDefinition.ParentModule?.MetadataFile
+				?.GetTypeSystemWithCurrentOptionsOrNull(SettingsService, AssemblyTreeModel.CurrentLanguageVersion)
 				?.MainModule)?.GetDefinition((FieldDefinitionHandle)FieldDefinition.MetadataToken) ?? FieldDefinition;
 		}
 
@@ -58,22 +58,22 @@ namespace ICSharpCode.ILSpy.TreeNodes
 		public static ImageSource GetIcon(IField field)
 		{
 			if (field.DeclaringType.Kind == TypeKind.Enum && field.ReturnType.Kind == TypeKind.Enum)
-				return Images.GetIcon(MemberIcon.EnumValue, MethodTreeNode.GetOverlayIcon(field.Accessibility), false);
+				return Images.GetIcon(MemberIcon.EnumValue, Images.GetOverlayIcon(field.Accessibility), false);
 
 			if (field.IsConst)
-				return Images.GetIcon(MemberIcon.Literal, MethodTreeNode.GetOverlayIcon(field.Accessibility), false);
+				return Images.GetIcon(MemberIcon.Literal, Images.GetOverlayIcon(field.Accessibility), false);
 
 			if (field.IsReadOnly)
-				return Images.GetIcon(MemberIcon.FieldReadOnly, MethodTreeNode.GetOverlayIcon(field.Accessibility), field.IsStatic);
+				return Images.GetIcon(MemberIcon.FieldReadOnly, Images.GetOverlayIcon(field.Accessibility), field.IsStatic);
 
-			return Images.GetIcon(MemberIcon.Field, MethodTreeNode.GetOverlayIcon(field.Accessibility), field.IsStatic);
+			return Images.GetIcon(MemberIcon.Field, Images.GetOverlayIcon(field.Accessibility), field.IsStatic);
 		}
 
-		public override FilterResult Filter(FilterSettings settings)
+		public override FilterResult Filter(LanguageSettings settings)
 		{
 			if (settings.ShowApiLevel == ApiVisibility.PublicOnly && !IsPublicAPI)
 				return FilterResult.Hidden;
-			if (settings.SearchTermMatches(FieldDefinition.Name) && (settings.ShowApiLevel == ApiVisibility.All || settings.Language.ShowMember(FieldDefinition)))
+			if (settings.SearchTermMatches(FieldDefinition.Name) && (settings.ShowApiLevel == ApiVisibility.All || LanguageService.Language.ShowMember(FieldDefinition)))
 				return FilterResult.Match;
 			else
 				return FilterResult.Hidden;

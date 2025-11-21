@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -21,60 +21,32 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
 using ICSharpCode.Decompiler;
-using ICSharpCode.Decompiler.Disassembler;
 using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.Metadata;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
-	internal class GenericParamConstraintTableTreeNode : MetadataTableTreeNode
+	internal class GenericParamConstraintTableTreeNode : MetadataTableTreeNode<GenericParamConstraintTableTreeNode.GenericParamConstraintEntry>
 	{
-		public GenericParamConstraintTableTreeNode(PEFile module)
-			: base(HandleKind.GenericParameterConstraint, module)
+		public GenericParamConstraintTableTreeNode(MetadataFile metadataFile)
+			: base(TableIndex.GenericParamConstraint, metadataFile)
 		{
 		}
 
-		public override object Text => $"2C GenericParamConstraint ({module.Metadata.GetTableRowCount(TableIndex.GenericParamConstraint)})";
-
-		public override object Icon => Images.Literal;
-
-		public override bool View(ViewModels.TabPageModel tabPage)
+		protected override IReadOnlyList<GenericParamConstraintEntry> LoadTable()
 		{
-			tabPage.Title = Text.ToString();
-			tabPage.SupportsLanguageSwitching = false;
-
-			var view = Helpers.PrepareDataGrid(tabPage, this);
-			var metadata = module.Metadata;
-
 			var list = new List<GenericParamConstraintEntry>();
-			GenericParamConstraintEntry scrollTargetEntry = default;
-
+			var metadata = metadataFile.Metadata;
 			for (int row = 1; row <= metadata.GetTableRowCount(TableIndex.GenericParamConstraint); row++)
 			{
-				GenericParamConstraintEntry entry = new GenericParamConstraintEntry(module, MetadataTokens.GenericParameterConstraintHandle(row));
-				if (entry.RID == this.scrollTarget)
-				{
-					scrollTargetEntry = entry;
-				}
-				list.Add(entry);
+				list.Add(new GenericParamConstraintEntry(metadataFile, MetadataTokens.GenericParameterConstraintHandle(row)));
 			}
-			view.ItemsSource = list;
-
-			tabPage.Content = view;
-
-			if (scrollTargetEntry.RID > 0)
-			{
-				ScrollItemIntoView(view, scrollTargetEntry);
-			}
-
-			return true;
+			return list;
 		}
 
-		struct GenericParamConstraintEntry
+		internal struct GenericParamConstraintEntry
 		{
-			readonly int metadataOffset;
-			readonly PEFile module;
-			readonly MetadataReader metadata;
+			readonly MetadataFile metadataFile;
 			readonly GenericParameterConstraintHandle handle;
 			readonly GenericParameterConstraint genericParamConstraint;
 
@@ -82,17 +54,16 @@ namespace ICSharpCode.ILSpy.Metadata
 
 			public int Token => MetadataTokens.GetToken(handle);
 
-			public int Offset => metadataOffset
-				+ metadata.GetTableMetadataOffset(TableIndex.GenericParamConstraint)
-				+ metadata.GetTableRowSize(TableIndex.GenericParamConstraint) * (RID - 1);
+			public int Offset => metadataFile.MetadataOffset
+				+ metadataFile.Metadata.GetTableMetadataOffset(TableIndex.GenericParamConstraint)
+				+ metadataFile.Metadata.GetTableRowSize(TableIndex.GenericParamConstraint) * (RID - 1);
 
-			[StringFormat("X8")]
-			[LinkToTable]
+			[ColumnInfo("X8", Kind = ColumnKind.Token)]
 			public int Owner => MetadataTokens.GetToken(genericParamConstraint.Parameter);
 
 			public void OnOwnerClick()
 			{
-				MainWindow.Instance.JumpToReference(new EntityReference(module, genericParamConstraint.Parameter, protocol: "metadata"));
+				MessageBus.Send(this, new NavigateToReferenceEventArgs(new EntityReference(metadataFile, genericParamConstraint.Parameter, protocol: "metadata")));
 			}
 
 			string ownerTooltip;
@@ -102,46 +73,34 @@ namespace ICSharpCode.ILSpy.Metadata
 					if (ownerTooltip == null)
 					{
 						ITextOutput output = new PlainTextOutput();
-						var p = metadata.GetGenericParameter(genericParamConstraint.Parameter);
-						output.Write("parameter " + p.Index + (p.Name.IsNil ? "" : " (" + metadata.GetString(p.Name) + ")") + " of ");
-						p.Parent.WriteTo(module, output, default);
+						var p = metadataFile.Metadata.GetGenericParameter(genericParamConstraint.Parameter);
+						output.Write("parameter " + p.Index + (p.Name.IsNil ? "" : " (" + metadataFile.Metadata.GetString(p.Name) + ")") + " of ");
+						p.Parent.WriteTo(metadataFile, output, default);
 						ownerTooltip = output.ToString();
 					}
 					return ownerTooltip;
 				}
 			}
 
-			[StringFormat("X8")]
-			[LinkToTable]
+			[ColumnInfo("X8", Kind = ColumnKind.Token)]
 			public int Type => MetadataTokens.GetToken(genericParamConstraint.Type);
 
 			public void OnTypeClick()
 			{
-				MainWindow.Instance.JumpToReference(new EntityReference(module, genericParamConstraint.Type, protocol: "metadata"));
+				MessageBus.Send(this, new NavigateToReferenceEventArgs(new EntityReference(metadataFile, genericParamConstraint.Type, protocol: "metadata")));
 			}
 
-			public string TypeTooltip {
-				get {
-					ITextOutput output = new PlainTextOutput();
-					genericParamConstraint.Type.WriteTo(module, output, default);
-					return output.ToString();
-				}
-			}
+			string typeTooltip;
+			public string TypeTooltip => GenerateTooltip(ref typeTooltip, metadataFile, genericParamConstraint.Type);
 
-			public GenericParamConstraintEntry(PEFile module, GenericParameterConstraintHandle handle)
+			public GenericParamConstraintEntry(MetadataFile metadataFile, GenericParameterConstraintHandle handle)
 			{
-				this.metadataOffset = module.Reader.PEHeaders.MetadataStartOffset;
-				this.module = module;
-				this.metadata = module.Metadata;
+				this.metadataFile = metadataFile;
 				this.handle = handle;
-				this.genericParamConstraint = metadata.GetGenericParameterConstraint(handle);
+				this.genericParamConstraint = metadataFile.Metadata.GetGenericParameterConstraint(handle);
 				this.ownerTooltip = null;
+				this.typeTooltip = null;
 			}
-		}
-
-		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
-		{
-			language.WriteCommentLine(output, "GenericParamConstraints");
 		}
 	}
 }

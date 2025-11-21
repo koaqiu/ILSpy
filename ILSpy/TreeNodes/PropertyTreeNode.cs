@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -53,8 +53,8 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		private IProperty GetPropertyDefinition()
 		{
-			return ((MetadataModule)PropertyDefinition.ParentModule.PEFile
-				?.GetTypeSystemWithCurrentOptionsOrNull()
+			return ((MetadataModule)PropertyDefinition.ParentModule?.MetadataFile
+				?.GetTypeSystemWithCurrentOptionsOrNull(SettingsService, AssemblyTreeModel.CurrentLanguageVersion)
 				?.MainModule)?.GetDefinition((PropertyDefinitionHandle)PropertyDefinition.MetadataToken) ?? PropertyDefinition;
 		}
 
@@ -68,14 +68,14 @@ namespace ICSharpCode.ILSpy.TreeNodes
 		public static ImageSource GetIcon(IProperty property)
 		{
 			return Images.GetIcon(property.IsIndexer ? MemberIcon.Indexer : MemberIcon.Property,
-				MethodTreeNode.GetOverlayIcon(property.Accessibility), property.IsStatic);
+				Images.GetOverlayIcon(property.Accessibility), property.IsStatic);
 		}
 
-		public override FilterResult Filter(FilterSettings settings)
+		public override FilterResult Filter(LanguageSettings settings)
 		{
 			if (settings.ShowApiLevel == ApiVisibility.PublicOnly && !IsPublicAPI)
 				return FilterResult.Hidden;
-			if (settings.SearchTermMatches(PropertyDefinition.Name) && (settings.ShowApiLevel == ApiVisibility.All || settings.Language.ShowMember(PropertyDefinition)))
+			if (settings.SearchTermMatches(PropertyDefinition.Name) && (settings.ShowApiLevel == ApiVisibility.All || LanguageService.Language.ShowMember(PropertyDefinition)))
 				return FilterResult.Match;
 			else
 				return FilterResult.Hidden;
@@ -104,7 +104,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		public override string ToString()
 		{
-			return Languages.ILLanguage.PropertyToString(PropertyDefinition, false, false, false);
+			return LanguageService.ILLanguage.PropertyToString(PropertyDefinition, false, false, false);
 		}
 	}
 }

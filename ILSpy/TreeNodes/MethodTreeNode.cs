@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -43,8 +43,8 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		private IMethod GetMethodDefinition()
 		{
-			return ((MetadataModule)MethodDefinition.ParentModule.PEFile
-				?.GetTypeSystemWithCurrentOptionsOrNull()
+			return ((MetadataModule)MethodDefinition.ParentModule?.MetadataFile
+				?.GetTypeSystemWithCurrentOptionsOrNull(SettingsService, AssemblyTreeModel.CurrentLanguageVersion)
 				?.MainModule)?.GetDefinition((MethodDefinitionHandle)MethodDefinition.MetadataToken) ?? MethodDefinition;
 		}
 
@@ -58,40 +58,19 @@ namespace ICSharpCode.ILSpy.TreeNodes
 		public static ImageSource GetIcon(IMethod method)
 		{
 			if (method.IsOperator)
-				return Images.GetIcon(MemberIcon.Operator, GetOverlayIcon(method.Accessibility), false);
+				return Images.GetIcon(MemberIcon.Operator, Images.GetOverlayIcon(method.Accessibility), false);
 
 			if (method.IsExtensionMethod)
-				return Images.GetIcon(MemberIcon.ExtensionMethod, GetOverlayIcon(method.Accessibility), false);
+				return Images.GetIcon(MemberIcon.ExtensionMethod, Images.GetOverlayIcon(method.Accessibility), false);
 
 			if (method.IsConstructor)
-				return Images.GetIcon(MemberIcon.Constructor, GetOverlayIcon(method.Accessibility), method.IsStatic);
+				return Images.GetIcon(MemberIcon.Constructor, Images.GetOverlayIcon(method.Accessibility), method.IsStatic);
 
 			if (!method.HasBody && method.HasAttribute(KnownAttribute.DllImport))
-				return Images.GetIcon(MemberIcon.PInvokeMethod, GetOverlayIcon(method.Accessibility), true);
+				return Images.GetIcon(MemberIcon.PInvokeMethod, Images.GetOverlayIcon(method.Accessibility), true);
 
 			return Images.GetIcon(method.IsVirtual ? MemberIcon.VirtualMethod : MemberIcon.Method,
-				GetOverlayIcon(method.Accessibility), method.IsStatic);
-		}
-
-		internal static AccessOverlayIcon GetOverlayIcon(Accessibility accessibility)
-		{
-			switch (accessibility)
-			{
-				case Accessibility.Public:
-					return AccessOverlayIcon.Public;
-				case Accessibility.Internal:
-					return AccessOverlayIcon.Internal;
-				case Accessibility.ProtectedAndInternal:
-					return AccessOverlayIcon.PrivateProtected;
-				case Accessibility.Protected:
-					return AccessOverlayIcon.Protected;
-				case Accessibility.ProtectedOrInternal:
-					return AccessOverlayIcon.ProtectedInternal;
-				case Accessibility.Private:
-					return AccessOverlayIcon.Private;
-				default:
-					return AccessOverlayIcon.CompilerControlled;
-			}
+				Images.GetOverlayIcon(method.Accessibility), method.IsStatic);
 		}
 
 		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
@@ -99,11 +78,11 @@ namespace ICSharpCode.ILSpy.TreeNodes
 			language.DecompileMethod(MethodDefinition, output, options);
 		}
 
-		public override FilterResult Filter(FilterSettings settings)
+		public override FilterResult Filter(LanguageSettings settings)
 		{
 			if (settings.ShowApiLevel == ApiVisibility.PublicOnly && !IsPublicAPI)
 				return FilterResult.Hidden;
-			if (settings.SearchTermMatches(MethodDefinition.Name) && (settings.ShowApiLevel == ApiVisibility.All || settings.Language.ShowMember(MethodDefinition)))
+			if (settings.SearchTermMatches(MethodDefinition.Name) && (settings.ShowApiLevel == ApiVisibility.All || LanguageService.Language.ShowMember(MethodDefinition)))
 				return FilterResult.Match;
 			else
 				return FilterResult.Hidden;
@@ -127,7 +106,7 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		public override string ToString()
 		{
-			return Languages.ILLanguage.MethodToString(MethodDefinition, false, false, false);
+			return LanguageService.ILLanguage.MethodToString(MethodDefinition, false, false, false);
 		}
 	}
 }

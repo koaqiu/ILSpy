@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 Daniel Grunwald
+// Copyright (c) 2014 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -24,8 +24,6 @@ using System.Threading;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.CSharp.Syntax.PatternMatching;
-using ICSharpCode.Decompiler.CSharp.Transforms;
-using ICSharpCode.Decompiler.CSharp.TypeSystem;
 using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.IL.Transforms;
 using ICSharpCode.Decompiler.Semantics;
@@ -47,6 +45,8 @@ namespace ICSharpCode.Decompiler.CSharp
 		internal IType currentResultType;
 		internal bool currentIsIterator;
 
+		internal bool EmitAsRefReadOnly;
+
 		public StatementBuilder(IDecompilerTypeSystem typeSystem, ITypeResolveContext decompilationContext,
 			ILFunction currentFunction, DecompilerSettings settings, DecompileRun decompileRun,
 			CancellationToken cancellationToken)
@@ -58,6 +58,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				decompilationContext,
 				currentFunction,
 				settings,
+				decompileRun,
 				cancellationToken
 			);
 			this.currentFunction = currentFunction;
@@ -208,30 +209,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			var oldCaseLabelMapping = caseLabelMapping;
 			caseLabelMapping = new Dictionary<Block, ConstantResolveResult>();
 
-			TranslatedExpression value;
-			IType type;
-			if (inst.Value is StringToInt strToInt)
-			{
-				value = exprBuilder.Translate(strToInt.Argument)
-					.ConvertTo(
-						typeSystem.FindType(KnownTypeCode.String),
-						exprBuilder,
-						// switch statement does support implicit conversions in general, however, the rules are
-						// not very intuitive and in order to prevent bugs, we emit an explicit cast.
-						allowImplicitConversion: false
-					);
-				type = exprBuilder.compilation.FindType(KnownTypeCode.String);
-			}
-			else
-			{
-				strToInt = null;
-				value = exprBuilder.Translate(inst.Value);
-				if (inst.Type != null)
-				{
-					value = value.ConvertTo(inst.Type, exprBuilder, allowImplicitConversion: true);
-				}
-				type = value.Type;
-			}
+			var (value, type, strToInt) = exprBuilder.TranslateSwitchValue(inst, false);
 
 			IL.SwitchSection defaultSection = inst.GetDefaultSection();
 
@@ -395,8 +373,14 @@ namespace ICSharpCode.Decompiler.CSharp
 					return new YieldBreakStatement().WithILInstruction(inst);
 				else if (!inst.Value.MatchNop())
 				{
+					bool isLambdaOrExprTree = currentFunction.Kind is ILFunctionKind.ExpressionTree or ILFunctionKind.Delegate;
 					var expr = exprBuilder.Translate(inst.Value, typeHint: currentResultType)
 						.ConvertTo(currentResultType, exprBuilder, allowImplicitConversion: true);
+					if (isLambdaOrExprTree && IsPossibleLossOfTypeInformation(expr.Type, currentResultType))
+					{
+						expr = new CastExpression(exprBuilder.ConvertType(currentResultType), expr)
+							.WithRR(new ConversionResolveResult(currentResultType, expr.ResolveResult, Conversion.IdentityConversion)).WithoutILInstruction();
+					}
 					return new ReturnStatement(expr).WithILInstruction(inst);
 				}
 				else
@@ -417,6 +401,19 @@ namespace ICSharpCode.Decompiler.CSharp
 				endContainerLabels.Add(inst.TargetContainer, label);
 			}
 			return new GotoStatement(label).WithILInstruction(inst);
+		}
+
+		private bool IsPossibleLossOfTypeInformation(IType givenType, IType expectedType)
+		{
+			if (NormalizeTypeVisitor.IgnoreNullability.EquivalentTypes(givenType, expectedType))
+				return false;
+			if (expectedType is TupleType { ElementNames.IsEmpty: false })
+				return true;
+			if (expectedType == SpecialType.Dynamic)
+				return true;
+			if (givenType == SpecialType.NullType)
+				return true;
+			return false;
 		}
 
 		protected internal override TranslatedStatement VisitThrow(Throw inst)
@@ -554,7 +551,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				var.Kind = VariableKind.Local;
 				var disposeVariable = currentFunction.RegisterVariable(
 					VariableKind.Local, disposeType,
-					AssignVariableNames.GenerateVariableName(currentFunction, disposeType)
+					AssignVariableNames.GenerateVariableName(currentFunction, disposeType, decompileRun.UsingScope)
 				);
 				Expression disposeInvocation = new InvocationExpression(new MemberReferenceExpression(exprBuilder.ConvertVariable(disposeVariable).Expression, disposeTypeMethodName));
 				if (inst.IsAsync)
@@ -619,12 +616,8 @@ namespace ICSharpCode.Decompiler.CSharp
 					if (!m.Success)
 						return null;
 					// Validate that the invocation is an extension method invocation.
-					var context = new CSharpTypeResolveContext(
-						typeSystem.MainModule,
-						decompileRun.UsingScope.Resolve(typeSystem)
-					);
-					if (!IntroduceExtensionMethods.CanTransformToExtensionMethodCall(context,
-						(InvocationExpression)resource))
+					if (!(resource.GetSymbol() is IMethod method
+						&& exprBuilder.resolver.CanTransformToExtensionMethodCall(method, true)))
 					{
 						return null;
 					}
@@ -719,12 +712,12 @@ namespace ICSharpCode.Decompiler.CSharp
 					if (foreachVariable.Type.Kind != TypeKind.Dynamic)
 						foreachVariable.Type = type;
 					foreachVariable.Kind = VariableKind.ForeachLocal;
-					foreachVariable.Name = AssignVariableNames.GenerateForeachVariableName(currentFunction, collectionExpr.Annotation<ILInstruction>(), foreachVariable);
+					foreachVariable.Name = AssignVariableNames.GenerateForeachVariableName(currentFunction, collectionExpr.Annotation<ILInstruction>(), decompileRun.UsingScope, foreachVariable);
 					break;
 				case RequiredGetCurrentTransformation.IntroduceNewVariable:
 					foreachVariable = currentFunction.RegisterVariable(
 						VariableKind.ForeachLocal, type,
-						AssignVariableNames.GenerateForeachVariableName(currentFunction, collectionExpr.Annotation<ILInstruction>())
+						AssignVariableNames.GenerateForeachVariableName(currentFunction, collectionExpr.Annotation<ILInstruction>(), decompileRun.UsingScope)
 					);
 					instToReplace.ReplaceWith(new LdLoc(foreachVariable));
 					body.Instructions.Insert(0, new StLoc(foreachVariable, instToReplace));
@@ -732,11 +725,11 @@ namespace ICSharpCode.Decompiler.CSharp
 				case RequiredGetCurrentTransformation.IntroduceNewVariableAndLocalCopy:
 					foreachVariable = currentFunction.RegisterVariable(
 						VariableKind.ForeachLocal, type,
-						AssignVariableNames.GenerateForeachVariableName(currentFunction, collectionExpr.Annotation<ILInstruction>())
+						AssignVariableNames.GenerateForeachVariableName(currentFunction, collectionExpr.Annotation<ILInstruction>(), decompileRun.UsingScope)
 					);
 					var localCopyVariable = currentFunction.RegisterVariable(
 						VariableKind.Local, type,
-						AssignVariableNames.GenerateVariableName(currentFunction, type)
+						AssignVariableNames.GenerateVariableName(currentFunction, type, decompileRun.UsingScope)
 					);
 					instToReplace.Parent.ReplaceWith(new LdLoca(localCopyVariable));
 					body.Instructions.Insert(0, new StLoc(localCopyVariable, new LdLoc(foreachVariable)));
@@ -844,6 +837,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						designations.VariableDesignations.Add(ConstructDesignation(subPattern));
 					}
 				}
+				designations.AddAnnotation(matchInstruction);
 				return designations;
 			}
 		}
@@ -1347,6 +1341,32 @@ namespace ICSharpCode.Decompiler.CSharp
 		{
 			var blockStatement = ConvertBlockContainer(new BlockStatement(), container, container.Blocks, isLoop);
 			DeclareLocalFunctions(currentFunction, container, blockStatement);
+			if (currentFunction.Body == container)
+			{
+				if (EmitAsRefReadOnly)
+				{
+					var methodDecl = new MethodDeclaration();
+					if (settings.StaticLocalFunctions)
+					{
+						methodDecl.Modifiers = Modifiers.Static;
+					}
+
+					methodDecl.ReturnType = new ComposedType() { HasReadOnlySpecifier = true, HasRefSpecifier = true, BaseType = new SimpleType("T") };
+					methodDecl.Name = "ILSpyHelper_AsRefReadOnly";
+					methodDecl.TypeParameters.Add(new TypeParameterDeclaration("T"));
+					methodDecl.Parameters.Add(new ParameterDeclaration { ParameterModifier = ReferenceKind.In, Type = new SimpleType("T"), Name = "temp" });
+
+					methodDecl.Body = new BlockStatement();
+					methodDecl.Body.AddChild(new Comment(
+						"ILSpy generated this function to help ensure overload resolution can pick the overload using 'in'"),
+											 Roles.Comment);
+					methodDecl.Body.Add(new ReturnStatement(new DirectionExpression(FieldDirection.Ref, new IdentifierExpression("temp"))));
+
+					blockStatement.Statements.Add(
+						new LocalFunctionDeclarationStatement(methodDecl)
+					);
+				}
+			}
 			return blockStatement;
 		}
 
@@ -1363,6 +1383,16 @@ namespace ICSharpCode.Decompiler.CSharp
 			{
 				var astBuilder = exprBuilder.astBuilder;
 				var method = (MethodDeclaration)astBuilder.ConvertEntity(function.ReducedMethod);
+
+				var variables = function.Variables.Where(v => v.Kind == VariableKind.Parameter).ToDictionary(v => v.Index);
+
+				foreach (var (i, p) in method.Parameters.WithIndex())
+				{
+					if (variables.TryGetValue(i, out var v))
+					{
+						p.Name = v.Name;
+					}
+				}
 
 				if (function.Method.HasBody)
 				{
@@ -1511,6 +1541,33 @@ namespace ICSharpCode.Decompiler.CSharp
 			);
 			stmt.InsertChildAfter(null, new Comment(" IL cpblk instruction"), Roles.Comment);
 			return stmt.WithILInstruction(inst);
+		}
+
+		protected internal override TranslatedStatement VisitCkfinite(Ckfinite inst)
+		{
+			var isFiniteCall = new InvocationExpression {
+				Target = new MemberReferenceExpression {
+					Target = new TypeReferenceExpression(new Syntax.PrimitiveType("float")),
+					MemberName = "IsFinite"
+				},
+				Arguments = {
+					exprBuilder.Translate(inst.Argument)
+				}
+			};
+			var arithmeticException = typeSystem.FindType(typeof(ArithmeticException));
+			var arithmeticExceptionSyntax = new SimpleType("ArithmeticException");
+			arithmeticExceptionSyntax.AddAnnotation(new TypeResolveResult(arithmeticException));
+			return new IfElseStatement {
+				Condition = new UnaryOperatorExpression {
+					Operator = UnaryOperatorType.Not,
+					Expression = isFiniteCall
+				},
+				TrueStatement = new ThrowStatement(
+					new ObjectCreateExpression {
+						Type = arithmeticExceptionSyntax
+					}
+				),
+			}.WithILInstruction(inst);
 		}
 	}
 }

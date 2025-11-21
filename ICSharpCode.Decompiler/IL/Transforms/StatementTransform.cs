@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2017 Daniel Grunwald
+// Copyright (c) 2017 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -114,7 +114,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			var ctx = new StatementTransformContext(context);
 			int pos = 0;
-			ctx.rerunPosition = block.Instructions.Count - 1;
+			if (context.IndexOfFirstAlreadyTransformedInstruction == 0)
+			{
+				return;
+			}
+			ctx.rerunPosition = context.IndexOfFirstAlreadyTransformedInstruction - 1;
 			while (pos >= 0)
 			{
 				if (ctx.rerunPosition != null)

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -260,7 +260,7 @@ namespace ICSharpCode.ILSpy.TextView
 			references.Add(new ReferenceSegment { StartOffset = start, EndOffset = end, Reference = opCode });
 		}
 
-		public void WriteReference(PEFile module, Handle handle, string text, string protocol = "decompile", bool isDefinition = false)
+		public void WriteReference(MetadataFile metadata, Handle handle, string text, string protocol = "decompile", bool isDefinition = false)
 		{
 			WriteIndent();
 			int start = this.TextLength;
@@ -268,9 +268,9 @@ namespace ICSharpCode.ILSpy.TextView
 			int end = this.TextLength;
 			if (isDefinition)
 			{
-				this.DefinitionLookup.AddDefinition((module, handle), this.TextLength);
+				this.DefinitionLookup.AddDefinition((metadata, handle), this.TextLength);
 			}
-			references.Add(new ReferenceSegment { StartOffset = start, EndOffset = end, Reference = new EntityReference(module, handle, protocol), IsDefinition = isDefinition });
+			references.Add(new ReferenceSegment { StartOffset = start, EndOffset = end, Reference = new EntityReference(metadata, handle, protocol), IsDefinition = isDefinition });
 		}
 
 		public void WriteReference(IType type, string text, bool isDefinition = false)
@@ -310,6 +310,13 @@ namespace ICSharpCode.ILSpy.TextView
 				this.DefinitionLookup.AddDefinition(reference, this.TextLength);
 			}
 			references.Add(new ReferenceSegment { StartOffset = start, EndOffset = end, Reference = reference, IsLocal = true, IsDefinition = isDefinition });
+		}
+
+		internal object InitialHighlightReference = null;
+
+		public void SetInitialHighlight(object reference)
+		{
+			this.InitialHighlightReference = reference;
 		}
 
 		public void MarkFoldStart(string collapsedText = "...", bool defaultCollapsed = false, bool isDefinition = false)

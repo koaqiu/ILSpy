@@ -1,4 +1,4 @@
-﻿// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -42,6 +42,44 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 				};
 			}
 			return null;
+		}
+
+		private bool TryGet<T>(out T result)
+		{
+			result = default(T);
+			return true;
+		}
+
+		public void M3()
+		{
+			TryGet<Dictionary<int, (int, string)>>(out Dictionary<int, (int A, string B)> data);
+
+			Test();
+
+			int Test()
+			{
+				return data[0].A;
+			}
+		}
+
+		public void GetObject(out object obj)
+		{
+			obj = null;
+		}
+
+		public void M4()
+		{
+			GetObject(out dynamic obj);
+			obj.Method();
+		}
+
+		public void M5()
+		{
+			Func<bool> func = () => TryGet<object>(out var result) && result != null;
+			Func<bool> func2 = () => TryGet<object>(out var result) && result != null;
+
+			func();
+			func2();
 		}
 	}
 }

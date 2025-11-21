@@ -19,7 +19,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata;
 
+using ICSharpCode.Decompiler.IL.Transforms;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Semantics;
 using ICSharpCode.Decompiler.TypeSystem.Implementation;
@@ -239,7 +241,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 			bool IsUnmanagedTypeInternal(IType type)
 			{
-				if (type.Kind is TypeKind.Enum or TypeKind.Pointer or TypeKind.FunctionPointer)
+				if (type.Kind is TypeKind.Enum or TypeKind.Pointer or TypeKind.FunctionPointer or TypeKind.NInt or TypeKind.NUInt)
 				{
 					return true;
 				}
@@ -286,7 +288,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 						types = new HashSet<IType>();
 					}
 					types.Add(type);
-					foreach (var f in type.GetFields())
+					foreach (var f in type.GetFields(f => !f.IsStatic))
 					{
 						if (types.Contains(f.Type))
 						{
@@ -304,6 +306,49 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				}
 				return false;
 			}
+		}
+
+		public static bool IsArrayInterfaceType(this IType type)
+		{
+			if (type == null || type.TypeParameterCount != 1)
+				return false;
+			switch (type.GetDefinition()?.KnownTypeCode)
+			{
+				case KnownTypeCode.IEnumerableOfT:
+				case KnownTypeCode.ICollectionOfT:
+				case KnownTypeCode.IListOfT:
+				case KnownTypeCode.IReadOnlyCollectionOfT:
+				case KnownTypeCode.IReadOnlyListOfT:
+					return true;
+				default:
+					return false;
+			}
+		}
+
+		public static bool IsInlineArrayType(this IType type)
+		{
+			if (type.Kind != TypeKind.Struct)
+				return false;
+			var td = type.GetDefinition();
+			if (td == null)
+				return false;
+			return td.HasAttribute(KnownAttribute.InlineArray);
+		}
+
+		public static int? GetInlineArrayLength(this IType type)
+		{
+			if (type.Kind != TypeKind.Struct)
+				return null;
+			var td = type.GetDefinition();
+			if (td == null)
+				return null;
+			var attr = td.GetAttribute(KnownAttribute.InlineArray);
+			return attr?.FixedArguments.FirstOrDefault().Value as int?;
+		}
+
+		public static IType GetInlineArrayElementType(this IType arrayType)
+		{
+			return arrayType?.GetFields(f => !f.IsStatic).SingleOrDefault()?.Type ?? SpecialType.UnknownType;
 		}
 
 		/// <summary>
@@ -372,6 +417,15 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				ty = mt.ElementType;
 			}
 			return ty;
+		}
+
+		public static IType UnwrapByRef(this IType type)
+		{
+			if (type is ByReferenceType byRef)
+			{
+				type = byRef.ElementType;
+			}
+			return type;
 		}
 
 		public static bool HasReadonlyModifier(this IMethod accessor)
@@ -603,6 +657,48 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		}
 		#endregion
 
+		#region IParameter.IsDefaultValueAssignmentAllowed
+		/// <summary>
+		/// Checks if the parameter is allowed to be assigned a default value.
+		/// </summary>
+		/// <remarks>
+		/// This checks <see cref="IParameter.IsOptional"/>, <see cref="IParameter.HasConstantValueInSignature"/>, <see cref="IParameter.ReferenceKind"/>,
+		/// and <see cref="IParameter.IsParams"/> on this parameter and all subsequent parameters.
+		/// If the parameter has no <see cref="IParameter.Owner"/>, it does not check subsequent parameters.
+		/// </remarks>
+		/// <param name="parameter">The parameter</param>
+		/// <returns>True if the <paramref name="parameter"/> has a default value and is allowed to be assigned a default value.</returns>
+		public static bool IsDefaultValueAssignmentAllowed(this IParameter parameter)
+		{
+			if (!DefaultValueAssignmentAllowedIndividual(parameter))
+				return false;
+
+			if (parameter.Owner == null)
+				return true; // Shouldn't happen, but we need to check for it.
+
+			for (int i = parameter.Owner.Parameters.Count - 1; i >= 0; i--)
+			{
+				IParameter otherParameter = parameter.Owner.Parameters[i];
+				if (otherParameter == parameter)
+					break;
+
+				if (LocalFunctionDecompiler.IsClosureParameter(otherParameter, otherParameter.Owner.DeclaringTypeDefinition))
+					continue;
+
+				if (DefaultValueAssignmentAllowedIndividual(otherParameter) || otherParameter.IsParams)
+					continue;
+
+				return false;
+			}
+			return true;
+
+			static bool DefaultValueAssignmentAllowedIndividual(IParameter parameter)
+			{
+				return parameter.IsOptional && parameter.HasConstantValueInSignature && parameter.ReferenceKind is ReferenceKind.None or ReferenceKind.In or ReferenceKind.RefReadOnly;
+			}
+		}
+		#endregion
+
 		#region IAssembly.GetTypeDefinition(string,string,int)
 		/// <summary>
 		/// Gets the type definition for a top-level type.
@@ -690,14 +786,14 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		public static bool IsDirectImportOf(this ITypeDefinition type, IModule module)
 		{
 			var moduleReference = type.ParentModule;
-			foreach (var asmRef in module.PEFile.AssemblyReferences)
+			foreach (var asmRef in module.MetadataFile.AssemblyReferences)
 			{
 				if (asmRef.FullName == moduleReference.FullAssemblyName)
 					return true;
 				if (asmRef.Name == "netstandard" && asmRef.GetPublicKeyToken() != null)
 				{
 					var referencedModule = module.Compilation.FindModuleByReference(asmRef);
-					if (referencedModule != null && !referencedModule.PEFile.GetTypeForwarder(type.FullTypeName).IsNil)
+					if (referencedModule != null && !referencedModule.MetadataFile.GetTypeForwarder(type.FullTypeName).IsNil)
 						return true;
 				}
 			}
@@ -705,6 +801,25 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		}
 
 		public static IModule FindModuleByReference(this ICompilation compilation, IAssemblyReference assemblyName)
+		{
+			foreach (var module in compilation.Modules)
+			{
+				if (string.Equals(module.FullAssemblyName, assemblyName.FullName, StringComparison.OrdinalIgnoreCase))
+				{
+					return module;
+				}
+			}
+			foreach (var module in compilation.Modules)
+			{
+				if (string.Equals(module.Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase))
+				{
+					return module;
+				}
+			}
+			return null;
+		}
+
+		public static IModule FindModuleByAssemblyNameInfo(this ICompilation compilation, AssemblyNameInfo assemblyName)
 		{
 			foreach (var module in compilation.Modules)
 			{
@@ -738,6 +853,23 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			{
 				return new ParameterizedType(td, td.TypeArguments);
 			}
+		}
+
+#nullable enable
+		public static INamespace? GetNamespaceByFullName(this ICompilation compilation, string? name)
+		{
+			if (string.IsNullOrEmpty(name))
+				return compilation.RootNamespace;
+			var parts = name.Split('.');
+			var ns = compilation.RootNamespace;
+			foreach (var part in parts)
+			{
+				var child = ns.GetChildNamespace(part);
+				if (child == null)
+					return null;
+				ns = child;
+			}
+			return ns;
 		}
 	}
 }

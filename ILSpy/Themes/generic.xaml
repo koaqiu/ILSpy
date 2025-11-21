@@ -1,12 +1,13 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:controls="clr-namespace:ICSharpCode.ILSpy.Controls"
 	xmlns:themes="clr-namespace:ICSharpCode.ILSpy.Themes">
 	<ResourceDictionary.MergedDictionaries>
 		<ResourceDictionary Source="../Controls/SearchBoxStyle.xaml" />
 		<ResourceDictionary Source="../Controls/ZoomScrollViewer.xaml" />
+		<ResourceDictionary Source="../Controls/TreeView/SharpTreeView.xaml" />
 	</ResourceDictionary.MergedDictionaries>
-	
+
 	<!-- SortableGridViewColumn.
 		Displays an up arrow or down arrow in the column header when the grid is sorted using that column.
 	-->

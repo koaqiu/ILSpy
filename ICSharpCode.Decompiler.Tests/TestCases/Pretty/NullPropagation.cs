@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Daniel Grunwald
+// Copyright (c) 2018 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -315,6 +315,16 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		private static dynamic DynamicNullProp(dynamic a)
 		{
 			return a?.b.c(1)?.d[10];
+		}
+
+		private static string Issue3181()
+		{
+#if EXPECTED_OUTPUT
+			return ((int?)null)?.ToString();
+#else
+			int? x = null;
+			return x?.ToString();
+#endif
 		}
 	}
 }

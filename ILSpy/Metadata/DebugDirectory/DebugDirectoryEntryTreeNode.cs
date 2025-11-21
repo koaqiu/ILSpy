@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -23,7 +23,6 @@ using System.Reflection.PortableExecutable;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.ILSpy.TreeNodes;
-using ICSharpCode.ILSpy.ViewModels;
 
 namespace ICSharpCode.ILSpy.Metadata
 {
@@ -39,9 +38,9 @@ namespace ICSharpCode.ILSpy.Metadata
 			this.entry = entry;
 		}
 
-		override public object Text => $"{entry.Type}";
+		override public object Text => entry.Type.ToString();
 
-		public override object Icon => Images.Literal;
+		public override object Icon => Images.MetadataTable;
 
 		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)
 		{

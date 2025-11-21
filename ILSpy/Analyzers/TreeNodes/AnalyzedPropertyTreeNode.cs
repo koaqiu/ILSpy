@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,10 +17,12 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.Linq;
+using System.Diagnostics;
 
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.ILSpy.TreeNodes;
+
+#nullable enable
 
 namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 {
@@ -29,11 +31,12 @@ namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 		readonly IProperty analyzedProperty;
 		readonly string prefix;
 
-		public AnalyzedPropertyTreeNode(IProperty analyzedProperty, string prefix = "")
+		public AnalyzedPropertyTreeNode(IProperty analyzedProperty, IEntity? source, string prefix = "")
 		{
 			this.analyzedProperty = analyzedProperty ?? throw new ArgumentNullException(nameof(analyzedProperty));
 			this.prefix = prefix;
 			this.LazyLoading = true;
+			this.SourceMember = source;
 		}
 
 		public override object Icon => PropertyTreeNode.GetIcon(analyzedProperty);
@@ -44,19 +47,17 @@ namespace ICSharpCode.ILSpy.Analyzers.TreeNodes
 		protected override void LoadChildren()
 		{
 			if (analyzedProperty.CanGet)
-				this.Children.Add(new AnalyzedAccessorTreeNode(analyzedProperty.Getter, "get"));
+				this.Children.Add(new AnalyzedAccessorTreeNode(analyzedProperty.Getter, this.SourceMember, "get"));
 			if (analyzedProperty.CanSet)
-				this.Children.Add(new AnalyzedAccessorTreeNode(analyzedProperty.Setter, "set"));
-			//foreach (var accessor in analyzedProperty.OtherMethods)
-			//	this.Children.Add(new AnalyzedPropertyAccessorTreeNode(accessor, null));
+				this.Children.Add(new AnalyzedAccessorTreeNode(analyzedProperty.Setter, this.SourceMember, "set"));
 
-			var analyzers = App.ExportProvider.GetExports<IAnalyzer, IAnalyzerMetadata>("Analyzer");
-			foreach (var lazy in analyzers.OrderBy(item => item.Metadata.Order))
+			foreach (var lazy in Analyzers)
 			{
 				var analyzer = lazy.Value;
+				Debug.Assert(analyzer != null);
 				if (analyzer.Show(analyzedProperty))
 				{
-					this.Children.Add(new AnalyzerSearchTreeNode(analyzedProperty, analyzer, lazy.Metadata.Header));
+					this.Children.Add(new AnalyzerSearchTreeNode(analyzedProperty, analyzer, lazy.Metadata!.Header));
 				}
 			}
 		}

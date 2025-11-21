@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2020 Siegfried Pammer
+// Copyright (c) 2020 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -16,6 +16,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Collections;
 using System.Windows.Controls;
 
 namespace ILSpy.BamlDecompiler.Tests.Cases
@@ -25,6 +26,8 @@ namespace ILSpy.BamlDecompiler.Tests.Cases
 	/// </summary>
 	public partial class MyControl : UserControl
 	{
+		public IList DataTypes { get; } = new ArrayList();
+
 		public MyControl()
 		{
 			InitializeComponent();

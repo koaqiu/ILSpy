@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014-2020 Daniel Grunwald
+// Copyright (c) 2014-2020 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -204,6 +204,8 @@
 
 		new OpCode("ldstr", "Loads a constant string.",
 			CustomClassName("LdStr"), LoadConstant("string"), ResultType("O")),
+		new OpCode("ldstr.utf8", "Loads a constant byte string (as ReadOnlySpan&lt;byte&gt;).",
+			CustomClassName("LdStrUtf8"), LoadConstant("string"), ResultType("O")),
 		new OpCode("ldc.i4", "Loads a constant 32-bit integer.",
 			LoadConstant("int"), ResultType("I4")),
 		new OpCode("ldc.i8", "Loads a constant 64-bit integer.",
@@ -253,6 +255,9 @@
 		new OpCode("ldobj", "Indirect load (ref/pointer dereference).",
 			CustomClassName("LdObj"), CustomArguments(("target", new[] { "Ref", "I" })), HasTypeOperand, MemoryAccess, CustomWriteToButKeepOriginal,
 			SupportsVolatilePrefix, SupportsUnalignedPrefix, MayThrow, ResultType("type.GetStackType()")),
+		new OpCode("ldobj.if.ref", "If argument is a ref to a reference type, loads the object reference, stores it in a temporary, and evaluates to the address of that temporary (address.of(ldobj(arg))). Otherwise, returns the argument ref as-is.<para>This instruction represents the memory-load semantics of callvirt with a generic type as receiver (where the IL always takes a ref, but only methods on value types expect one, for method on reference types there's an implicit ldobj, which this instruction makes explicit in order to preserve the order-of-evaluation).</para>",
+			CustomClassName("LdObjIfRef"), CustomArguments(("target", new[] { "Ref", "I" })), HasTypeOperand, MemoryAccess,
+			MayThrow, ResultType("Ref")),
 		new OpCode("stobj", "Indirect store (store to ref/pointer)." + Environment.NewLine
 				+ "Evaluates to the value that was stored (when using type byte/short: evaluates to the truncated value, sign/zero extended back to I4 based on type.GetSign())",
 			CustomClassName("StObj"), CustomArguments(("target", new[] { "Ref", "I" }), ("value", new[] { "type.GetStackType()" })), HasTypeOperand, MemoryAccess, CustomWriteToButKeepOriginal,
@@ -261,7 +266,7 @@
 			CustomInvariant("CheckTargetSlot();")),
 
 		new OpCode("box", "Boxes a value.",
-			Unary, HasTypeOperand, MemoryAccess, MayThrow, ResultType("O")),
+			Unary, HasTypeOperand, ResultType("O")),
 		new OpCode("unbox", "Compute address inside box.",
 			Unary, HasTypeOperand, MayThrow, ResultType("Ref")),
 		new OpCode("unbox.any", "Unbox a value.",
@@ -285,6 +290,9 @@
 			CustomClassName("LdElema"), HasTypeOperand, CustomChildren(new [] { new ArgumentInfo("array"), new ArgumentInfo("indices") { IsCollection = true } }, true),
 			BoolFlag("WithSystemIndex"),
 			MayThrowIfNotDelayed, ResultType("Ref"), SupportsReadonlyPrefix),
+		new OpCode("ldelema.inlinearray", "Load address of inline array element.",
+			CustomClassName("LdElemaInlineArray"), HasTypeOperand, CustomChildren(new [] { new ArgumentInfo("array"), new ArgumentInfo("indices") { IsCollection = true } }, true),
+			MayThrow, ResultType("Ref"), SupportsReadonlyPrefix),
 		new OpCode("get.pinnable.reference", "Retrieves a pinnable reference for the input object." + Environment.NewLine
 				+ "The input must be an object reference (O)." + Environment.NewLine
 				+ "If the input is an array/string, evaluates to a reference to the first element/character, or to a null reference if the array is null or empty." + Environment.NewLine
@@ -914,7 +922,8 @@ namespace ICSharpCode.Decompiler.IL
 			b = new StringBuilder();
 			b.AppendLine("protected sealed override ILInstruction GetChild(int index)");
 			b.AppendLine("{");
-			b.AppendLine("\tswitch (index) {");
+			b.AppendLine("\tswitch (index)");
+			b.AppendLine("\t{");
 			for (int i = 0; i < childCount; i++) {
 				b.AppendLine("\t\tcase " + i + ":");
 				b.AppendLine("\t\t\treturn this." + children[i].Name + ";");
@@ -931,7 +940,8 @@ namespace ICSharpCode.Decompiler.IL
 			b = new StringBuilder();
 			b.AppendLine("protected sealed override void SetChild(int index, ILInstruction value)");
 			b.AppendLine("{");
-			b.AppendLine("\tswitch (index) {");
+			b.AppendLine("\tswitch (index)");
+			b.AppendLine("\t{");
 			for (int i = 0; i < childCount; i++) {
 				b.AppendLine("\t\tcase " + i + ":");
 				b.AppendLine("\t\t\tthis." + children[i].PropertyName + " = value;");
@@ -951,7 +961,8 @@ namespace ICSharpCode.Decompiler.IL
 			b = new StringBuilder();
 			b.AppendLine("protected sealed override SlotInfo GetChildSlot(int index)");
 			b.AppendLine("{");
-			b.AppendLine("\tswitch (index) {");
+			b.AppendLine("\tswitch (index)");
+			b.AppendLine("\t{");
 			for (int i = 0; i < childCount; i++) {
 				b.AppendLine("\t\tcase " + i + ":");
 				b.AppendLine("\t\t\treturn " + children[i].SlotName + ";");
@@ -1070,16 +1081,16 @@ protected override void Disconnected()
 	}
 	
 	static Action<OpCode> HasFieldOperand = opCode => {
-		opCode.ConstructorParameters.Add("IField field");
-		opCode.Members.Add("readonly IField field;");
-		opCode.ConstructorBody.Add("this.field = field;");
-		opCode.MatchParameters.Add(new MatchParamInfo { TypeName = "IField", Name = "field", FieldName = "Field" });
-		opCode.PerformMatchConditions.Add("field.Equals(o.field)");
+		opCode.ConstructorParameters.Add("IField @field");
+		opCode.Members.Add("readonly IField @field;");
+		opCode.ConstructorBody.Add("this.@field = @field;");
+		opCode.MatchParameters.Add(new MatchParamInfo { TypeName = "IField", Name = "@field", FieldName = "Field" });
+		opCode.PerformMatchConditions.Add("@field.Equals(o.@field)");
 		opCode.Members.Add("/// <summary>Returns the field operand.</summary>" + Environment.NewLine
-						+ "public IField Field { get { return field; } }");
+						+ "public IField Field { get { return @field; } }");
 		opCode.GenerateWriteTo = true;
 		opCode.WriteOperand.Add("output.Write(' ');");
-		opCode.WriteOperand.Add("field.WriteTo(output);");
+		opCode.WriteOperand.Add("@field.WriteTo(output);");
 		opCode.Interfaces.Add("IInstructionWithFieldOperand");
 	};
 
@@ -1111,7 +1122,8 @@ protected override void Disconnected()
 			opCode.Members.Add("/// <summary>Returns the method operand.</summary>" + Environment.NewLine
 							+ $"public IMethod{n} Method => method;");
 			opCode.GenerateWriteTo = true;
-			opCode.WriteOperand.Add("if (method != null) {");
+			opCode.WriteOperand.Add("if (method != null)");
+			opCode.WriteOperand.Add("{");
 			opCode.WriteOperand.Add("\toutput.Write(' ');");
 			opCode.WriteOperand.Add("\tmethod.WriteTo(output);");
 			opCode.WriteOperand.Add("}");

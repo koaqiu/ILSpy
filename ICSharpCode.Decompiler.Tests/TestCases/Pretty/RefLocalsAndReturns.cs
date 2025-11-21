@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 {
@@ -182,11 +182,11 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			GetRef<ReadOnlyStruct>().Method();
 
 			// call on a copy, not the original ref:
-			NormalStruct @ref = GetRef<NormalStruct>();
-			@ref.Method();
+			NormalStruct normalStruct = GetRef<NormalStruct>();
+			normalStruct.Method();
 
-			ReadOnlyStruct ref2 = GetRef<ReadOnlyStruct>();
-			ref2.Method();
+			ReadOnlyStruct readOnlyStruct = GetRef<ReadOnlyStruct>();
+			readOnlyStruct.Method();
 		}
 
 		public void CallOnReadOnlyRefReturn()
@@ -293,13 +293,13 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 
 		public void RefReassignment(ref NormalStruct s)
 		{
-			ref NormalStruct @ref = ref GetRef<NormalStruct>();
-			RefReassignment(ref @ref);
+			ref NormalStruct reference = ref GetRef<NormalStruct>();
+			RefReassignment(ref reference);
 			if (s.GetHashCode() == 0)
 			{
-				@ref = ref GetRef<NormalStruct>();
+				reference = ref GetRef<NormalStruct>();
 			}
-			RefReassignment(ref @ref.GetHashCode() == 4 ? ref @ref : ref s);
+			RefReassignment(ref reference.GetHashCode() == 4 ? ref reference : ref s);
 		}
 
 		public static void Main(string[] args)
@@ -320,5 +320,24 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			LastOrDefault() = 10000;
 			Console.WriteLine(ElementAtOrDefault(-5));
 		}
+
+#if CS120
+		public ref readonly int M(in int x)
+		{
+			return ref x;
+		}
+
+		public ref readonly int M2(ref readonly int x)
+		{
+			return ref x;
+		}
+
+		public void Test()
+		{
+			int x = 32;
+			M(in x);
+			M2(in x);
+		}
+#endif
 	}
 }

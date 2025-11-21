@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -57,6 +57,11 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		ITypeDefinition IType.GetDefinition()
 		{
 			return baseType.GetDefinition();
+		}
+
+		ITypeDefinitionOrUnknown IType.GetDefinitionOrUnknown()
+		{
+			return baseType.GetDefinitionOrUnknown();
 		}
 
 		IEnumerable<IEvent> IType.GetEvents(Predicate<IEvent> filter, GetMemberOptions options)

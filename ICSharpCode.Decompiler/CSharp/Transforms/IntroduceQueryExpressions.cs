@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,10 +17,10 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.Diagnostics;
 using System.Linq;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
+using ICSharpCode.Decompiler.IL;
 
 namespace ICSharpCode.Decompiler.CSharp.Transforms
 {
@@ -54,17 +54,32 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				while (IsDegenerateQuery(innerQuery))
 				{
 					QueryFromClause innerFromClause = (QueryFromClause)innerQuery.Clauses.First();
-					if (fromClause.Identifier != innerFromClause.Identifier)
-						break;
+					ILVariable innerVariable = innerFromClause.Annotation<ILVariableResolveResult>()?.Variable;
+					ILVariable rangeVariable = fromClause.Annotation<ILVariableResolveResult>()?.Variable;
 					// Replace the fromClause with all clauses from the inner query
 					fromClause.Remove();
 					QueryClause insertionPos = null;
 					foreach (var clause in innerQuery.Clauses)
 					{
+						CombineRangeVariables(clause, innerVariable, rangeVariable);
 						query.Clauses.InsertAfter(insertionPos, insertionPos = clause.Detach());
 					}
 					fromClause = innerFromClause;
 					innerQuery = fromClause.Expression as QueryExpression;
+				}
+			}
+		}
+
+		private void CombineRangeVariables(QueryClause clause, ILVariable oldVariable, ILVariable newVariable)
+		{
+			foreach (var identifier in clause.DescendantNodes().OfType<Identifier>())
+			{
+				var variable = identifier.Parent.Annotation<ILVariableResolveResult>()?.Variable;
+				if (variable == oldVariable)
+				{
+					identifier.Parent.RemoveAnnotations<ILVariableResolveResult>();
+					identifier.Parent.AddAnnotation(new ILVariableResolveResult(newVariable));
+					identifier.ReplaceWith(Identifier.Create(newVariable.Name));
 				}
 			}
 		}
@@ -389,7 +404,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 
 		private static bool ValidateParameter(ParameterDeclaration p)
 		{
-			return p.ParameterModifier == ParameterModifier.None && p.Attributes.Count == 0;
+			return p.ParameterModifier == Decompiler.TypeSystem.ReferenceKind.None && p.Attributes.Count == 0;
 		}
 	}
 }

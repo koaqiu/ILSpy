@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -67,7 +67,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 				currentTypeDefinitionCache = new TypeDefinitionCache(context.CurrentTypeDefinition);
 		}
 
-		private CSharpResolver(ICompilation compilation, CSharpConversions conversions, CSharpTypeResolveContext context, bool checkForOverflow, bool isWithinLambdaExpression, TypeDefinitionCache currentTypeDefinitionCache, ImmutableStack<IVariable> localVariableStack, ObjectInitializerContext objectInitializerStack)
+		private CSharpResolver(ICompilation compilation, CSharpConversions conversions, CSharpTypeResolveContext context, bool checkForOverflow, bool isWithinLambdaExpression, TypeDefinitionCache currentTypeDefinitionCache, ImmutableStack<Dictionary<string, IVariable>> localVariableStack, ObjectInitializerContext objectInitializerStack)
 		{
 			this.compilation = compilation;
 			this.conversions = conversions;
@@ -162,14 +162,14 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 		/// <summary>
 		/// Gets the current using scope that is used to look up identifiers as class names.
 		/// </summary>
-		public ResolvedUsingScope CurrentUsingScope {
+		public UsingScope CurrentUsingScope {
 			get { return context.CurrentUsingScope; }
 		}
 
 		/// <summary>
 		/// Sets the current using scope that is used to look up identifiers as class names.
 		/// </summary>
-		public CSharpResolver WithCurrentUsingScope(ResolvedUsingScope usingScope)
+		public CSharpResolver WithCurrentUsingScope(UsingScope usingScope)
 		{
 			return WithContext(context.WithUsingScope(usingScope));
 		}
@@ -228,54 +228,21 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 		// The beginning of a block is marked by a null entry.
 
 		// This data structure is used to allow efficient cloning of the resolver with its local variable context.
-		readonly ImmutableStack<IVariable> localVariableStack = ImmutableStack<IVariable>.Empty;
+		readonly ImmutableStack<Dictionary<string, IVariable>> localVariableStack = ImmutableStack<Dictionary<string, IVariable>>.Empty;
 
-		CSharpResolver WithLocalVariableStack(ImmutableStack<IVariable> stack)
+		CSharpResolver WithLocalVariableStack(ImmutableStack<Dictionary<string, IVariable>> stack)
 		{
 			return new CSharpResolver(compilation, conversions, context, checkForOverflow, isWithinLambdaExpression, currentTypeDefinitionCache, stack, objectInitializerStack);
 		}
 
 		/// <summary>
-		/// Opens a new scope for local variables.
+		/// Adds new variableŝ or lambda parameters to the current block.
 		/// </summary>
-		public CSharpResolver PushBlock()
+		public CSharpResolver AddVariables(Dictionary<string, IVariable> variables)
 		{
-			return WithLocalVariableStack(localVariableStack.Push(null));
-		}
-
-		/// <summary>
-		/// Closes the current scope for local variables; removing all variables in that scope.
-		/// </summary>
-		public CSharpResolver PopBlock()
-		{
-			var stack = localVariableStack;
-			IVariable removedVar;
-			do
-			{
-				removedVar = stack.Peek();
-				stack = stack.Pop();
-			} while (removedVar != null);
-			return WithLocalVariableStack(stack);
-		}
-
-		/// <summary>
-		/// Adds a new variable or lambda parameter to the current block.
-		/// </summary>
-		public CSharpResolver AddVariable(IVariable variable)
-		{
-			if (variable == null)
-				throw new ArgumentNullException(nameof(variable));
-			return WithLocalVariableStack(localVariableStack.Push(variable));
-		}
-
-		/// <summary>
-		/// Removes the variable that was just added.
-		/// </summary>
-		public CSharpResolver PopLastVariable()
-		{
-			if (localVariableStack.Peek() == null)
-				throw new InvalidOperationException("There is no variable within the current block.");
-			return WithLocalVariableStack(localVariableStack.Pop());
+			if (variables == null)
+				throw new ArgumentNullException(nameof(variables));
+			return WithLocalVariableStack(localVariableStack.Push(variables));
 		}
 
 		/// <summary>
@@ -284,7 +251,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 		/// </summary>
 		public IEnumerable<IVariable> LocalVariables {
 			get {
-				return localVariableStack.Where(v => v != null);
+				return localVariableStack.SelectMany(s => s.Values);
 			}
 		}
 		#endregion
@@ -685,7 +652,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 			{
 				isNullable = true;
 			}
-			if (op == BinaryOperatorType.ShiftLeft || op == BinaryOperatorType.ShiftRight)
+			if (op == BinaryOperatorType.ShiftLeft || op == BinaryOperatorType.ShiftRight || op == BinaryOperatorType.UnsignedShiftRight)
 			{
 				// special case: the shift operators allow "var x = null << null", producing int?.
 				if (lhsType.Kind == TypeKind.Null && rhsType.Kind == TypeKind.Null)
@@ -805,6 +772,9 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 				case BinaryOperatorType.ShiftRight:
 					methodGroup = operators.ShiftRightOperators;
 					break;
+				case BinaryOperatorType.UnsignedShiftRight:
+					methodGroup = operators.UnsignedShiftRightOperators;
+					break;
 				case BinaryOperatorType.Equality:
 				case BinaryOperatorType.InEquality:
 				case BinaryOperatorType.LessThan:
@@ -835,7 +805,10 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 					}
 					if (op == BinaryOperatorType.Equality || op == BinaryOperatorType.InEquality)
 					{
-						if (lhsType.IsReferenceType == true && rhsType.IsReferenceType == true)
+						if (lhsType.IsReferenceType == true && rhsType.IsReferenceType == true && lhsType.Kind != TypeKind.Null && rhsType.Kind != TypeKind.Null
+							&& (conversions.IdentityConversion(lhsType, rhsType)
+								|| conversions.ExplicitConversion(lhsType, rhsType).IsReferenceConversion
+								|| conversions.ExplicitConversion(rhsType, lhsType).IsReferenceConversion))
 						{
 							// If it's a reference comparison
 							if (op == BinaryOperatorType.Equality)
@@ -1223,14 +1196,11 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 				ResolveResult rr = ResolveCast(targetType, expression);
 				if (rr.IsError)
 					return rr;
-				Debug.Assert(rr.IsCompileTimeConstant);
-				return new ConstantResolveResult(nullableType, rr.ConstantValue);
+				if (rr.IsCompileTimeConstant)
+					return new ConstantResolveResult(nullableType, rr.ConstantValue);
 			}
-			else
-			{
-				return Convert(expression, nullableType,
-							   isNullable ? Conversion.ImplicitNullableConversion : Conversion.ImplicitNumericConversion);
-			}
+			return Convert(expression, nullableType,
+							isNullable ? Conversion.ImplicitNullableConversion : Conversion.ImplicitNumericConversion);
 		}
 		#endregion
 
@@ -1259,6 +1229,8 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 					return "op_LeftShift";
 				case BinaryOperatorType.ShiftRight:
 					return "op_RightShift";
+				case BinaryOperatorType.UnsignedShiftRight:
+					return "op_UnsignedRightShift";
 				case BinaryOperatorType.Equality:
 					return "op_Equality";
 				case BinaryOperatorType.InEquality:
@@ -1513,9 +1485,9 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 				if (lookupMode == NameLookupMode.Expression || lookupMode == NameLookupMode.InvocationTarget)
 				{
 					// Look in local variables
-					foreach (IVariable v in this.LocalVariables)
+					foreach (Dictionary<string, IVariable> variables in localVariableStack)
 					{
-						if (v.Name == identifier)
+						if (variables.TryGetValue(identifier, out var v))
 						{
 							return new LocalResolveResult(v);
 						}
@@ -1684,8 +1656,8 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 		ResolveResult LookInCurrentUsingScope(string identifier, IReadOnlyList<IType> typeArguments, bool isInUsingDeclaration, bool parameterizeResultType)
 		{
 			// look in current namespace definitions
-			ResolvedUsingScope currentUsingScope = this.CurrentUsingScope;
-			for (ResolvedUsingScope u = currentUsingScope; u != null; u = u.Parent)
+			UsingScope currentUsingScope = this.CurrentUsingScope;
+			for (UsingScope u = currentUsingScope; u != null; u = u.Parent)
 			{
 				var resultInNamespace = LookInUsingScopeNamespace(u, u.Namespace, identifier, typeArguments, parameterizeResultType);
 				if (resultInNamespace != null)
@@ -1742,7 +1714,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 			return null;
 		}
 
-		ResolveResult LookInUsingScopeNamespace(ResolvedUsingScope usingScope, INamespace n, string identifier, IReadOnlyList<IType> typeArguments, bool parameterizeResultType)
+		ResolveResult LookInUsingScopeNamespace(UsingScope usingScope, INamespace n, string identifier, IReadOnlyList<IType> typeArguments, bool parameterizeResultType)
 		{
 			if (n == null)
 				return null;
@@ -1760,7 +1732,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 			}
 			// then look for a type
 			ITypeDefinition def = n.GetTypeDefinition(identifier, k);
-			if (def != null)
+			if (def != null && TopLevelTypeDefinitionIsAccessible(def))
 			{
 				IType result = def;
 				if (parameterizeResultType && k > 0)
@@ -1792,7 +1764,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 			if (identifier == "global")
 				return new NamespaceResolveResult(compilation.RootNamespace);
 
-			for (ResolvedUsingScope n = this.CurrentUsingScope; n != null; n = n.Parent)
+			for (UsingScope n = this.CurrentUsingScope; n != null; n = n.Parent)
 			{
 				if (n.ExternAliases.Contains(identifier))
 				{
@@ -2218,7 +2190,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 			}
 			extensionMethodGroups = new List<List<IMethod>>();
 			List<IMethod> m;
-			for (ResolvedUsingScope scope = currentUsingScope; scope != null; scope = scope.Parent)
+			for (UsingScope scope = currentUsingScope; scope != null; scope = scope.Parent)
 			{
 				INamespace ns = scope.Namespace;
 				if (ns != null)
@@ -2243,7 +2215,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 			// TODO: maybe make this a property on INamespace?
 			return
 				from c in ns.Types
-				where c.IsStatic && c.HasExtensionMethods && c.TypeParameters.Count == 0 && lookup.IsAccessible(c, false)
+				where c.IsStatic && c.HasExtensions && c.TypeParameters.Count == 0 && lookup.IsAccessible(c, false)
 				from m in c.Methods
 				where m.IsExtensionMethod
 				select m;
@@ -2980,6 +2952,34 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 				return bopResult;
 			return new OperatorResolveResult(lhs.Type, linqOp, opResult.UserDefinedOperatorMethod, opResult.IsLiftedOperator,
 											 new[] { lhs, opResult.Operands[1] });
+		}
+		#endregion
+
+		#region CanTransformToExtensionMethodCall
+		public bool CanTransformToExtensionMethodCall(IMethod method,
+	IReadOnlyList<IType> typeArguments, ResolveResult target, ResolveResult[] arguments, string[] argumentNames)
+		{
+			if (target is LambdaResolveResult)
+				return false;
+			var rr = ResolveMemberAccess(target, method.Name, typeArguments, NameLookupMode.InvocationTarget) as MethodGroupResolveResult;
+			if (rr == null)
+				return false;
+			var or = rr.PerformOverloadResolution(CurrentTypeResolveContext.Compilation, arguments, argumentNames, allowExtensionMethods: true);
+			if (or == null || or.IsAmbiguous)
+				return false;
+			return method.Equals(or.GetBestCandidateWithSubstitutedTypeArguments())
+				&& CSharpResolver.IsEligibleExtensionMethod(target.Type, method, useTypeInference: false, out _);
+		}
+
+		public bool CanTransformToExtensionMethodCall(IMethod method, bool ignoreTypeArguments = false, bool ignoreArgumentNames = true)
+		{
+			if (method.Parameters.Count == 0)
+				return false;
+			var targetType = method.Parameters.Select(p => new ResolveResult(p.Type)).First();
+			var paramTypes = method.Parameters.Skip(1).Select(p => new ResolveResult(p.Type)).ToArray();
+			var paramNames = ignoreArgumentNames ? null : method.Parameters.SelectReadOnlyArray(p => p.Name);
+			var typeArgs = ignoreTypeArguments ? Empty<IType>.Array : method.TypeArguments.ToArray();
+			return CanTransformToExtensionMethodCall(method, typeArgs, targetType, paramTypes, argumentNames: paramNames);
 		}
 		#endregion
 	}

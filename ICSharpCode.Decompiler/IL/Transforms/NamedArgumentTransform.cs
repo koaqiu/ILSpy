@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Linq;
 
 using ICSharpCode.Decompiler.TypeSystem;
@@ -99,7 +99,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				if (call.IsInstanceCall)
 				{
 					IType thisVarType = call.ConstrainedTo ?? call.Method.DeclaringType;
-					if (CallInstruction.ExpectedTypeForThisPointer(thisVarType) == StackType.Ref)
+					if (CallInstruction.ExpectedTypeForThisPointer(call.Method.DeclaringType, call.ConstrainedTo) == StackType.Ref)
 					{
 						thisVarType = new ByReferenceType(thisVarType);
 					}

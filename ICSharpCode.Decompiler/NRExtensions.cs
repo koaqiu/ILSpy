@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2015 Siegfried Pammer
+// Copyright (c) 2015 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -16,7 +16,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 using System;
-using System.Collections.Generic;
+using System.Reflection.Metadata;
 
 using ICSharpCode.Decompiler.Documentation;
 using ICSharpCode.Decompiler.TypeSystem;
@@ -94,10 +94,18 @@ namespace ICSharpCode.Decompiler
 
 		internal static string GetDocumentation(this IEntity entity)
 		{
-			var docProvider = XmlDocLoader.LoadDocumentation(entity.ParentModule.PEFile);
+			var docProvider = XmlDocLoader.LoadDocumentation(entity.ParentModule.MetadataFile);
 			if (docProvider == null)
 				return null;
 			return docProvider.GetDocumentation(entity);
+		}
+
+		internal static System.Reflection.TypeAttributes GetMetadataAttributes(this ITypeDefinition type)
+		{
+			var metadata = type.ParentModule.MetadataFile?.Metadata;
+			if (metadata == null || type.MetadataToken.IsNil)
+				return 0;
+			return metadata.GetTypeDefinition((TypeDefinitionHandle)type.MetadataToken).Attributes;
 		}
 	}
 }

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2020 Daniel Grunwald
+// Copyright (c) 2020 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -91,6 +91,9 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					break;
 				case BinaryOperatorType.ShiftRight when genericNestingLevel >= 2:
 					genericNestingLevel -= 2;
+					break;
+				case BinaryOperatorType.UnsignedShiftRight when genericNestingLevel >= 3:
+					genericNestingLevel -= 3;
 					break;
 				default:
 					return true; // stop visiting, no ambiguity found

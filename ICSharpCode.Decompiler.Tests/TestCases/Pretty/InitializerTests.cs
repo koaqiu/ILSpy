@@ -34,6 +34,10 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 		public static void Add<T>(this IList<KeyValuePair<string, string>> collection, string key, T value, Func<T, string> convert = null)
 		{
 		}
+
+		public static void Add(this TestCases collection, string key)
+		{
+		}
 	}
 
 	public class TestCases
@@ -88,6 +92,11 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 		{
 			public int A;
 			public int B;
+
+			public int M()
+			{
+				return 42;
+			}
 
 			public S(int a)
 			{
@@ -225,12 +234,75 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 			public string S = "abc";
 			public Item I;
 		}
+
+		public record DerivedFields : Fields
+		{
+			public ConsoleKey E;
+		}
 #endif
 
 		public interface IData
 		{
 			int Property { get; set; }
 		}
+
+#if CS90
+		public class Issue3392Type
+		{
+			public bool Flag { get; init; }
+			public List<int> List { get; } = new List<int>();
+
+			public Issue3392Type(object x)
+			{
+
+			}
+		}
+
+		private class StructInitPropertiesTest
+		{
+			private class TypeA
+			{
+				public int A { get; set; }
+				public int B { get; set; }
+			}
+
+			private struct TypeB
+			{
+				public int A { get; set; }
+				public int B { get; set; }
+			}
+
+			private struct TypeC
+			{
+				public int A { get; init; }
+				public int B { get; init; }
+			}
+
+			private static TypeA TestA()
+			{
+				return new TypeA {
+					A = 1,
+					B = 2
+				};
+			}
+
+			private static TypeB TestB()
+			{
+				return new TypeB {
+					A = 1,
+					B = 2
+				};
+			}
+
+			private static TypeC TestC()
+			{
+				return new TypeC {
+					A = 1,
+					B = 2
+				};
+			}
+		}
+#endif
 		#endregion
 
 		private S s1;
@@ -382,6 +454,10 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 		public static ReadOnlySpan<byte> StaticData3 => new byte[3] { 1, 2, 3 };
 
 		public static Span<byte> StaticData3Span => new byte[3] { 1, 2, 3 };
+#endif
+#if CS110 && !NET40
+		public static ReadOnlySpan<byte> UTF8Literal => "Hello, world!"u8;
+		public static ReadOnlySpan<byte> UTF8LiteralWithNullTerminator => "Hello, world!\0"u8;
 #endif
 		#endregion
 
@@ -740,6 +816,19 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 			array[0] = 1;
 			Console.WriteLine(array.Length);
 		}
+
+#if !NET40 && CS70
+		public static ReadOnlySpan<byte> ReadOnlySpanInitializer_ByteArray()
+		{
+			return new byte[3] { 1, 2, 3 };
+		}
+
+		public static ReadOnlySpan<int> ReadOnlySpanInitializer_Int32Array()
+		{
+			return new int[3] { 1, 2, 3 };
+		}
+#endif
+
 		#endregion
 
 		#region Object initializers
@@ -908,14 +997,6 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 			});
 		}
 
-		public static void NotAStructInitializer_DefaultConstructor()
-		{
-			StructData structData = default(StructData);
-			structData.Field = 1;
-			structData.Property = 2;
-			X(Y(), structData);
-		}
-
 		public static void StructInitializer_DefaultConstructor()
 		{
 			X(Y(), new StructData {
@@ -934,14 +1015,6 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 				A = 42,
 				B = 24
 			};
-		}
-
-		public static void NotAStructInitializer_ExplicitConstructor()
-		{
-			StructData structData = new StructData(0);
-			structData.Field = 1;
-			structData.Property = 2;
-			X(Y(), structData);
 		}
 
 		public static void StructInitializer_ExplicitConstructor()
@@ -1003,6 +1076,17 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 			otherItem.Data2.Nullable = 3m;
 			return otherItem;
 		}
+
+#if CS90
+		public Issue3392Type Issue3392(Issue3392Type x)
+		{
+			x = new Issue3392Type(null) {
+				Flag = false
+			};
+			x.List.AddRange(Enumerable.Range(0, 10));
+			return x;
+		}
+#endif
 #if CS60
 		public OtherItem2 Issue1345c()
 		{
@@ -1071,6 +1155,20 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 				}
 			};
 		}
+
+		public DerivedFields DerivedRecordTest(DerivedFields input)
+		{
+			return input with {
+				A = 42,
+				D = 43,
+				I = new Item {
+					Value7 = input with {
+						A = 44,
+						D = 45
+					}
+				}
+			};
+		}
 #endif
 
 		private TData GenericObjectInitializer<TData>() where TData : IData, new()
@@ -1099,6 +1197,14 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty.InitializerTests
 			CustomList<int> customList = new CustomList<int>();
 			customList.Add<int>("int");
 			Console.WriteLine(customList);
+		}
+
+		public static TestCases NoCollectionInitializerBecauseOfMissingIEnumerable()
+		{
+			TestCases testCases = new TestCases();
+			testCases.Add("int");
+			testCases.Add("string");
+			return testCases;
 		}
 
 		public static void CollectionInitializerWithParamsMethod()

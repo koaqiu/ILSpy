@@ -1,4 +1,4 @@
-﻿// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -17,11 +17,40 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
 
 namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 {
 	public class ConstructorInitializers
 	{
+		public class JArray
+		{
+			private readonly List<object> objects = new List<object>();
+			private readonly List<string> strings = new List<string>();
+
+			public JArray()
+			{
+			}
+
+			public JArray(params object[] items)
+			{
+				foreach (object item in items)
+				{
+					objects.Add(item);
+				}
+			}
+
+			public JArray(object content)
+			{
+				objects.Add(content);
+			}
+
+			public JArray(string content)
+			{
+				strings.Add(content);
+			}
+		}
+
 		public struct Issue1743
 		{
 			public int Leet;
@@ -37,6 +66,48 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 				Leet = dummy1 + dummy2;
 			}
 		}
+
+#if CS120
+		public struct Issue1743WithPrimaryCtor(int dummy1, int dummy2)
+		{
+			public int Leet = dummy1 + dummy2;
+
+			public Issue1743WithPrimaryCtor(int dummy)
+				: this(dummy, dummy)
+			{
+				Leet += dummy;
+			}
+		}
+
+		/// <summary>
+		/// This is info about the class
+		/// </summary>
+		private struct StructWithXmlDocCtor
+		{
+			public int A;
+
+			public int B;
+
+			/// <summary>
+			/// This is info about the constructor
+			/// </summary>
+			public StructWithXmlDocCtor(int a, int b)
+			{
+				A = a;
+				B = b;
+			}
+		}
+
+		/// <summary>
+		/// This is info about the class
+		/// </summary>
+		private struct StructWithoutXmlDocCtor(int a, int b)
+		{
+			public int A = a;
+
+			public int B = b;
+		}
+#endif
 
 		public class ClassWithConstant
 		{
@@ -60,7 +131,11 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 		public class MethodCallInCtorInit
 		{
 			public MethodCallInCtorInit(ConsoleKey key)
+#if MCS5
+				: this(((int)key/*cast due to .constrained prefix*/).ToString())
+#else
 				: this(((int)key).ToString())
+#endif
 			{
 			}
 
@@ -80,5 +155,113 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			public unsafe static int StaticSizeOf = sizeof(SimpleStruct);
 			public unsafe int SizeOf = sizeof(SimpleStruct);
 		}
+
+
+#if CS120
+		public class ClassWithPrimaryCtorUsingGlobalParameter(int a)
+		{
+			public void Print()
+			{
+				Console.WriteLine(a);
+			}
+		}
+
+		public class ClassWithPrimaryCtorUsingGlobalParameterAssignedToField(int a)
+		{
+#pragma warning disable CS9124 // Parameter is captured into the state of the enclosing type and its value is also used to initialize a field, property, or event.
+			private readonly int _a = a;
+#pragma warning restore CS9124 // Parameter is captured into the state of the enclosing type and its value is also used to initialize a field, property, or event.
+
+			public void Print()
+			{
+				Console.WriteLine(_a);
+			}
+		}
+
+		public class ClassWithPrimaryCtorUsingGlobalParameterAssignedToFieldAndUsedInMethod(int a)
+		{
+#pragma warning disable CS9124 // Parameter is captured into the state of the enclosing type and its value is also used to initialize a field, property, or event.
+			private readonly int _a = a;
+#pragma warning restore CS9124 // Parameter is captured into the state of the enclosing type and its value is also used to initialize a field, property, or event.
+
+			public void Print()
+			{
+				Console.WriteLine(a);
+			}
+		}
+
+		public class ClassWithPrimaryCtorUsingGlobalParameterAssignedToProperty(int a)
+		{
+			public int A { get; set; } = a;
+
+			public void Print()
+			{
+				Console.WriteLine(A);
+			}
+		}
+
+
+
+		public class ClassWithPrimaryCtorUsingGlobalParameterInExpressionAssignedToProperty(int a)
+		{
+			public int A { get; set; } = (int)Math.Abs(Math.PI * (double)a);
+
+			public void Print()
+			{
+				Console.WriteLine(A);
+			}
+		}
+
+		public class ClassWithPrimaryCtorUsingGlobalParameterAssignedToEvent(EventHandler a)
+		{
+			public event EventHandler A = a;
+
+			public void Print()
+			{
+				Console.WriteLine(this.A);
+			}
+		}
+#endif
+
+		public class NoRecordButCopyConstructorLike
+		{
+			private NoRecordButCopyConstructorLike parent;
+
+			public NoRecordButCopyConstructorLike(NoRecordButCopyConstructorLike parent)
+			{
+				this.parent = parent;
+			}
+		}
+
+
+#if CS100
+		public class PrimaryCtorClassThisChain(Guid id)
+		{
+			public Guid guid { get; } = id;
+
+			public PrimaryCtorClassThisChain(Guid id, int value)
+				: this(Guid.NewGuid())
+			{
+
+			}
+			public PrimaryCtorClassThisChain()
+				: this(Guid.NewGuid(), 222)
+			{
+
+			}
+		}
+#if EXPECTED_OUTPUT
+		public class UnusedPrimaryCtorParameter
+		{
+			public UnusedPrimaryCtorParameter(int unused)
+			{
+			}
+		}
+#else
+		public class UnusedPrimaryCtorParameter(int unused)
+		{
+		}
+#endif
+#endif
 	}
 }

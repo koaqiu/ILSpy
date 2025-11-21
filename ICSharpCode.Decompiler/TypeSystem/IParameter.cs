@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -18,6 +18,7 @@
 
 #nullable enable
 
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
@@ -31,12 +32,26 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		None,
 		Out,
 		Ref,
-		In
+		In,
+		RefReadOnly,
 	}
 
 	public struct LifetimeAnnotation
 	{
+		/// <summary>
+		/// C# 11 scoped annotation: "scoped ref" (ScopedRefAttribute)
+		/// </summary>
+		public bool ScopedRef {
+#pragma warning disable 618
+			get { return RefScoped; }
+			set { RefScoped = value; }
+#pragma warning restore 618
+		}
+
+		[Obsolete("Use ScopedRef property instead of directly accessing this field")]
 		public bool RefScoped;
+
+		[Obsolete("C# 11 preview: \"ref scoped\" no longer supported")]
 		public bool ValueScoped;
 	}
 
@@ -56,21 +71,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		/// C# 11 scoped annotation.
 		/// </summary>
 		LifetimeAnnotation Lifetime { get; }
-
-		/// <summary>
-		/// Gets whether this parameter is a C# 'ref' parameter.
-		/// </summary>
-		bool IsRef { get; }
-
-		/// <summary>
-		/// Gets whether this parameter is a C# 'out' parameter.
-		/// </summary>
-		bool IsOut { get; }
-
-		/// <summary>
-		/// Gets whether this parameter is a C# 'in' parameter.
-		/// </summary>
-		bool IsIn { get; }
 
 		/// <summary>
 		/// Gets whether this parameter is a C# 'params' parameter.

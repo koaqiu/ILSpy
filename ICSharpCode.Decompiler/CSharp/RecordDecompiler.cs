@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2020 Daniel Grunwald
+// Copyright (c) 2020 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -26,6 +26,7 @@ using System.Threading;
 using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.IL.Transforms;
 using ICSharpCode.Decompiler.TypeSystem;
+using ICSharpCode.Decompiler.Util;
 
 namespace ICSharpCode.Decompiler.CSharp
 {
@@ -53,8 +54,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			this.settings = settings;
 			this.cancellationToken = cancellationToken;
 			this.baseClass = recordTypeDef.DirectBaseTypes.FirstOrDefault(b => b.Kind == TypeKind.Class);
-			this.isStruct = baseClass.IsKnownType(KnownTypeCode.ValueType);
-			this.isInheritedRecord = !isStruct && !baseClass.IsKnownType(KnownTypeCode.Object);
+			this.isStruct = baseClass?.IsKnownType(KnownTypeCode.ValueType) ?? false;
+			this.isInheritedRecord = !isStruct && !(baseClass?.IsKnownType(KnownTypeCode.Object) ?? false);
 			this.isSealed = recordTypeDef.IsSealed;
 			DetectAutomaticProperties();
 			this.orderedMembers = DetectMemberOrder(recordTypeDef, backingFieldToAutoProperty);
@@ -78,6 +79,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			bool IsAutoProperty(IProperty p, out IField field)
 			{
 				field = null;
+				if (p.IsStatic)
+					return false;
 				if (p.Parameters.Count != 0)
 					return false;
 				if (p.Getter != null)
@@ -158,23 +161,57 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		IMethod DetectPrimaryConstructor()
 		{
+			Debug.Assert(recordTypeDef.IsRecord);
 			if (!settings.UsePrimaryConstructorSyntax)
 				return null;
 
 			var subst = recordTypeDef.AsParameterizedType().GetSubstitution();
+
+			IMethod guessedPrimaryCtor = null;
+
 			foreach (var method in recordTypeDef.Methods)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 				if (method.IsStatic || !method.IsConstructor)
 					continue;
+				if (IsCopyConstructor(method))
+				{
+					continue;
+				}
 				var m = method.Specialize(subst);
 				if (IsPrimaryConstructor(m, method))
-					return method;
-				primaryCtorParameterToAutoProperty.Clear();
-				autoPropertyToPrimaryCtorParameter.Clear();
+				{
+					if (guessedPrimaryCtor == null)
+					{
+						guessedPrimaryCtor = method;
+					}
+					else
+					{
+						// Multiple primary constructor candidates found - give up
+						guessedPrimaryCtor = null;
+						break;
+					}
+				}
 			}
 
-			return null;
+			if (guessedPrimaryCtor == null)
+			{
+				primaryCtorParameterToAutoProperty.Clear();
+			}
+
+			foreach (var (parameter, property) in primaryCtorParameterToAutoProperty.ToArray())
+			{
+				if (!parameter.Owner.Equals(guessedPrimaryCtor))
+				{
+					primaryCtorParameterToAutoProperty.Remove(parameter);
+				}
+				else
+				{
+					autoPropertyToPrimaryCtorParameter.Add(property, parameter);
+				}
+			}
+
+			return guessedPrimaryCtor;
 
 			bool IsPrimaryConstructor(IMethod method, IMethod unspecializedMethod)
 			{
@@ -183,39 +220,61 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (body == null)
 					return false;
 
-				if (method.Parameters.Count == 0)
-					return false;
+				if (!isStruct)
+				{
+					if (body.Instructions.SecondToLastOrDefault() is not CallInstruction baseCtorCall)
+						return false;
+					var baseCtor = baseCtorCall.Method;
+					if (!baseCtor.IsConstructor)
+						return false;
+					if (baseCtor.DeclaringType.Equals(method.DeclaringType))
+						return false;
+				}
 
 				var addonInst = isStruct ? 1 : 2;
-				if (body.Instructions.Count < method.Parameters.Count + addonInst)
+
+				if (body.Instructions.Count < addonInst)
 					return false;
 
-				for (int i = 0; i < method.Parameters.Count; i++)
+				for (int i = 0; i < body.Instructions.Count - addonInst; i++)
 				{
 					if (!body.Instructions[i].MatchStFld(out var target, out var field, out var valueInst))
 						return false;
 					if (!target.MatchLdThis())
 						return false;
-					if (method.Parameters[i].IsIn)
+					if (i < method.Parameters.Count)
 					{
-						if (!valueInst.MatchLdObj(out valueInst, out _))
+						if (method.Parameters[i].ReferenceKind is ReferenceKind.In or ReferenceKind.RefReadOnly)
+						{
+							if (!valueInst.MatchLdObj(out valueInst, out _))
+								return false;
+						}
+						if (!valueInst.MatchLdLoc(out var value))
 							return false;
-					}
-					if (!valueInst.MatchLdLoc(out var value))
-						return false;
-					if (!(value.Kind == VariableKind.Parameter && value.Index == i))
-						return false;
-					if (!backingFieldToAutoProperty.TryGetValue(field, out var property))
-						return false;
-					primaryCtorParameterToAutoProperty.Add(unspecializedMethod.Parameters[i], property);
-					autoPropertyToPrimaryCtorParameter.Add(property, unspecializedMethod.Parameters[i]);
-				}
+						if (!(value.Kind == VariableKind.Parameter && value.Index >= 0 && value.Index < method.Parameters.Count))
+							return false;
 
-				if (!isStruct)
-				{
-					var baseCtorCall = body.Instructions.SecondToLastOrDefault() as CallInstruction;
-					if (baseCtorCall == null)
-						return false;
+						if (!backingFieldToAutoProperty.TryGetValue(field, out var property))
+						{
+							return false;
+						}
+
+						IParameter parameter = unspecializedMethod.Parameters[i];
+						if (primaryCtorParameterToAutoProperty.ContainsKey(parameter))
+						{
+							return false;
+						}
+
+						if (recordTypeDef.Kind != TypeKind.Struct)
+						{
+							if (!(property.CanSet && property.Setter.IsInitOnly))
+							{
+								continue;
+							}
+						}
+
+						primaryCtorParameterToAutoProperty.Add(parameter, property);
+					}
 				}
 
 				var returnInst = body.Instructions.LastOrDefault();
@@ -292,7 +351,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						// virtual bool Equals(R? other): generated unless user-declared
 						return IsGeneratedEquals(method);
 					}
-					else if (isInheritedRecord && NormalizeTypeVisitor.TypeErasure.EquivalentTypes(paramType, baseClass) && method.IsOverride)
+					else if (isInheritedRecord && baseClass != null && NormalizeTypeVisitor.TypeErasure.EquivalentTypes(paramType, baseClass) && method.IsOverride)
 					{
 						// override bool Equals(BaseClass? obj): always generated
 						return true;
@@ -320,6 +379,9 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		internal bool PropertyIsGenerated(IProperty property)
 		{
+			if (!recordTypeDef.IsRecord)
+				return false;
+
 			switch (property.Name)
 			{
 				case "EqualityContract" when !isStruct:
@@ -336,10 +398,14 @@ namespace ICSharpCode.Decompiler.CSharp
 				&& autoPropertyToPrimaryCtorParameter.ContainsKey((IProperty)property.Specialize(subst));
 		}
 
-		internal (IProperty prop, IField field) GetPropertyInfoByPrimaryConstructorParameter(IParameter parameter)
+		internal Dictionary<IParameter, (IProperty, IField)> GetParameterToBackingStoreMap()
 		{
-			var prop = primaryCtorParameterToAutoProperty[parameter];
-			return (prop, autoPropertyToBackingField[prop]);
+			var result = new Dictionary<IParameter, (IProperty, IField)>();
+			foreach (var (parameter, property) in primaryCtorParameterToAutoProperty)
+			{
+				result.Add(parameter, (property, autoPropertyToBackingField[property]));
+			}
+			return result;
 		}
 
 		public bool IsCopyConstructor(IMethod method)
@@ -351,6 +417,9 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			return method.IsConstructor
 				&& method.Parameters.Count == 1
+				&& (recordTypeDef.IsSealed
+				? (method.Accessibility == Accessibility.Private)
+				: (method.Accessibility == Accessibility.Protected))
 				&& IsRecordType(method.Parameters[0].Type);
 		}
 
@@ -445,11 +514,23 @@ namespace ICSharpCode.Decompiler.CSharp
 			var getter = property.Getter;
 			if (!(getter != null && !property.CanSet))
 				return false;
-			if (property.GetAttributes().Any())
-				return false;
+			var attrs = property.GetAttributes().ToList();
+			switch (attrs.Count)
+			{
+				case 0:
+					// Roslyn 3.x does not emit a CompilerGeneratedAttribute on the property itself.
+					break;
+				case 1:
+					// Roslyn 4.4 started doing so.
+					if (!attrs[0].AttributeType.IsKnownType(KnownAttribute.CompilerGenerated))
+						return false;
+					break;
+				default:
+					return false;
+			}
 			if (getter.GetReturnTypeAttributes().Any())
 				return false;
-			var attrs = getter.GetAttributes().ToList();
+			attrs = getter.GetAttributes().ToList();
 			if (attrs.Count != 1)
 				return false;
 			if (!attrs[0].AttributeType.IsKnownType(KnownAttribute.CompilerGenerated))
@@ -600,6 +681,10 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (member.IsStatic)
 				{
 					return false; // static fields/properties are not printed
+				}
+				if (member.Accessibility != Accessibility.Public)
+				{
+					return false; // non-public fields/properties are not printed
 				}
 				if (!isStruct && member.Name == "EqualityContract")
 				{
@@ -760,7 +845,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						return false;
 					if (!(conditions[pos] is Call { Method: { Name: "Equals" } } call))
 						return false;
-					if (!NormalizeTypeVisitor.TypeErasure.EquivalentTypes(call.Method.DeclaringType, baseClass))
+					if (baseClass != null && !NormalizeTypeVisitor.TypeErasure.EquivalentTypes(call.Method.DeclaringType, baseClass))
 						return false;
 					if (call.Arguments.Count != 2)
 						return false;
@@ -1000,11 +1085,11 @@ namespace ICSharpCode.Decompiler.CSharp
 				var deconstruct = method.Parameters[i];
 				var ctor = primaryCtor.Parameters[i];
 
-				if (!deconstruct.IsOut)
+				if (deconstruct.ReferenceKind != ReferenceKind.Out)
 					return false;
 
 				IType ctorType = ctor.Type;
-				if (ctor.IsIn)
+				if (ctor.ReferenceKind is ReferenceKind.In or ReferenceKind.RefReadOnly)
 					ctorType = ((ByReferenceType)ctorType).ElementType;
 				if (!ctorType.Equals(((ByReferenceType)deconstruct.Type).ElementType))
 					return false;
@@ -1036,7 +1121,10 @@ namespace ICSharpCode.Decompiler.CSharp
 					return false;
 				var autoProperty = (IProperty)call.Method.AccessorOwner;
 				if (!autoPropertyToBackingField.ContainsKey(autoProperty))
-					return false;
+				{
+					if (autoProperty.DeclaringTypeDefinition == recordTypeDef)
+						return false;
+				}
 			}
 
 			var returnInst = body.Instructions.LastOrDefault();
@@ -1088,7 +1176,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			var genericContext = new GenericContext(
 				classTypeParameters: recordTypeDef.TypeParameters,
 				methodTypeParameters: null);
-			var body = typeSystem.MainModule.PEFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
+			var body = typeSystem.MainModule.MetadataFile.GetMethodBody(methodDef.RelativeVirtualAddress);
 			var ilReader = new ILReader(typeSystem.MainModule);
 			var il = ilReader.ReadIL(methodDefHandle, body, genericContext, ILFunctionKind.TopLevelFunction, cancellationToken);
 			var settings = new DecompilerSettings(LanguageVersion.CSharp1);

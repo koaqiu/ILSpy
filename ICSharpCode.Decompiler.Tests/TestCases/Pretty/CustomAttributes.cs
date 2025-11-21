@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2014 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -163,8 +163,13 @@ namespace CustomAttributes
 		public static void UseGenericAttribute()
 		{
 		}
-		// TODO: add test for generic attributes with arguments of type T
-		// This is blocked by https://github.com/dotnet/runtime/issues/58073
+		[Generic<int>(42)]
+		[Generic<string>("Hi")]
+		[Generic<object>("Hi")]
+		[Generic<object>((short)42)]
+		public static void UseGenericAttributeWithArg()
+		{
+		}
 #endif
 	}
 }

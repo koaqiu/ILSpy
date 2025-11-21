@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2010-2013 AlphaSierraPapa for the SharpDevelop Team
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -19,7 +19,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.TypeSystem.Implementation;
@@ -36,8 +35,8 @@ namespace ICSharpCode.Decompiler.Tests.TypeSystem
 		void TestFindType(Type type)
 		{
 			IType t = compilation.FindType(type);
-			Assert.IsNotNull(t, type.FullName);
-			Assert.AreEqual(type.FullName, t.ReflectionName);
+			Assert.That(t, Is.Not.Null, type.FullName);
+			Assert.That(t.ReflectionName, Is.EqualTo(type.FullName));
 		}
 
 		[Test]
@@ -71,239 +70,229 @@ namespace ICSharpCode.Decompiler.Tests.TypeSystem
 		}
 
 		[Test]
-		public void TestToTypeReferenceInnerClass()
+		public void TestFindTypeReflectionNameInnerClass()
 		{
-			Assert.AreEqual("System.Environment+SpecialFolder",
-							compilation.FindType(typeof(Environment.SpecialFolder)).ReflectionName);
+			Assert.That(compilation.FindType(typeof(Environment.SpecialFolder)).ReflectionName, Is.EqualTo("System.Environment+SpecialFolder"));
 		}
 
 		[Test]
-		public void TestToTypeReferenceUnboundGenericClass()
+		public void TestFindTypeReflectionNameUnboundGenericClass()
 		{
-			Assert.AreEqual("System.Action`1",
-							compilation.FindType(typeof(Action<>)).ReflectionName);
-			Assert.AreEqual("System.Action`2",
-							compilation.FindType(typeof(Action<,>)).ReflectionName);
+			Assert.That(compilation.FindType(typeof(Action<>)).ReflectionName, Is.EqualTo("System.Action`1"));
+			Assert.That(compilation.FindType(typeof(Action<,>)).ReflectionName, Is.EqualTo("System.Action`2"));
 		}
 
 		[Test]
-		public void TestToTypeReferenceBoundGenericClass()
+		public void TestFindTypeReflectionNameBoundGenericClass()
 		{
-			Assert.AreEqual("System.Action`1[[System.String]]",
-							compilation.FindType(typeof(Action<string>)).ReflectionName);
-			Assert.AreEqual("System.Action`2[[System.Int32],[System.Int16]]",
-							compilation.FindType(typeof(Action<int, short>)).ReflectionName);
+			Assert.That(compilation.FindType(typeof(Action<string>)).ReflectionName, Is.EqualTo("System.Action`1[[System.String]]"));
+			Assert.That(compilation.FindType(typeof(Action<int, short>)).ReflectionName, Is.EqualTo("System.Action`2[[System.Int32],[System.Int16]]"));
 		}
 
 
 		[Test]
-		public void TestToTypeReferenceNullableType()
+		public void TestFindTypeReflectionNameNullableType()
 		{
-			Assert.AreEqual("System.Nullable`1[[System.Int32]]",
-							compilation.FindType(typeof(int?)).ReflectionName);
+			Assert.That(compilation.FindType(typeof(int?)).ReflectionName, Is.EqualTo("System.Nullable`1[[System.Int32]]"));
 		}
 
 		[Test]
-		public void TestToTypeReferenceInnerClassInUnboundGenericType()
+		public void TestFindTypeReflectionNameInnerClassInUnboundGenericType()
 		{
-			Assert.AreEqual("System.Collections.Generic.Dictionary`2+ValueCollection",
-							compilation.FindType(typeof(Dictionary<,>.ValueCollection)).ReflectionName);
+			Assert.That(compilation.FindType(typeof(Dictionary<,>.ValueCollection)).ReflectionName, Is.EqualTo("System.Collections.Generic.Dictionary`2+ValueCollection"));
 		}
 
 		[Test]
-		public void TestToTypeReferenceInnerClassInBoundGenericType()
+		public void TestFindTypeReflectionNameInnerClassInBoundGenericType()
 		{
-			Assert.AreEqual("System.Collections.Generic.Dictionary`2+KeyCollection[[System.String],[System.Int32]]",
-							compilation.FindType(typeof(Dictionary<string, int>.KeyCollection)).ReflectionName);
+			Assert.That(compilation.FindType(typeof(Dictionary<string, int>.KeyCollection)).ReflectionName, Is.EqualTo("System.Collections.Generic.Dictionary`2+KeyCollection[[System.String],[System.Int32]]"));
 		}
 
 		[Test]
-		public void TestToTypeReferenceArrayType()
+		public void TestFindTypeReflectionNameArrayType()
 		{
-			Assert.AreEqual(typeof(int[]).FullName,
-							compilation.FindType(typeof(int[])).ReflectionName);
+			Assert.That(compilation.FindType(typeof(int[])).ReflectionName, Is.EqualTo(typeof(int[]).FullName));
 		}
 
 		[Test]
-		public void TestToTypeReferenceMultidimensionalArrayType()
+		public void TestFindTypeReflectionNameMultidimensionalArrayType()
 		{
-			Assert.AreEqual(typeof(int[,]).FullName,
-							compilation.FindType(typeof(int[,])).ReflectionName);
+			Assert.That(compilation.FindType(typeof(int[,])).ReflectionName, Is.EqualTo(typeof(int[,]).FullName));
 		}
 
 		[Test]
-		public void TestToTypeReferenceJaggedMultidimensionalArrayType()
+		public void TestFindTypeReflectionNameJaggedMultidimensionalArrayType()
 		{
-			Assert.AreEqual(typeof(int[,][,,]).FullName,
-							compilation.FindType(typeof(int[,][,,])).ReflectionName);
+			Assert.That(compilation.FindType(typeof(int[,][,,])).ReflectionName, Is.EqualTo(typeof(int[,][,,]).FullName));
 		}
 
 		[Test]
-		public void TestToTypeReferencePointerType()
+		public void TestFindTypeReflectionNamePointerType()
 		{
-			Assert.AreEqual(typeof(int*).FullName,
-							compilation.FindType(typeof(int*)).ReflectionName);
+			Assert.That(compilation.FindType(typeof(int*)).ReflectionName, Is.EqualTo(typeof(int*).FullName));
 		}
 
 		[Test]
-		public void TestToTypeReferenceByReferenceType()
+		public void TestFindTypeReflectionNameByReferenceType()
 		{
-			Assert.AreEqual(typeof(int).MakeByRefType().FullName,
-							compilation.FindType(typeof(int).MakeByRefType()).ReflectionName);
-		}
-
-		[Test]
-		public void TestToTypeReferenceGenericType()
-		{
-			MethodInfo convertAllInfo = typeof(List<>).GetMethod("ConvertAll");
-			ITypeReference parameterType = convertAllInfo.GetParameters()[0].ParameterType.ToTypeReference(); // Converter[[`0],[``0]]
-																											  // cannot resolve generic types without knowing the parent entity:
-			IType resolvedWithoutEntity = parameterType.Resolve(new SimpleTypeResolveContext(compilation));
-			Assert.AreEqual("System.Converter`2[[`0],[``0]]", resolvedWithoutEntity.ReflectionName);
-			Assert.IsNull(((ITypeParameter)((ParameterizedType)resolvedWithoutEntity).GetTypeArgument(0)).Owner);
-			// now try with parent entity:
-			IMethod convertAll = compilation.FindType(typeof(List<>)).GetMethods(m => m.Name == "ConvertAll").Single();
-			IType resolvedWithEntity = parameterType.Resolve(new SimpleTypeResolveContext(convertAll));
-			Assert.AreEqual("System.Converter`2[[`0],[``0]]", resolvedWithEntity.ReflectionName);
-			Assert.AreSame(convertAll.DeclaringTypeDefinition, ((ITypeParameter)((ParameterizedType)resolvedWithEntity).GetTypeArgument(0)).Owner);
+			Assert.That(compilation.FindType(typeof(int).MakeByRefType()).ReflectionName, Is.EqualTo(typeof(int).MakeByRefType().FullName));
 		}
 
 		[Test]
 		public void ParseReflectionName()
 		{
 			var context = new SimpleTypeResolveContext(compilation.MainModule);
-			Assert.AreEqual("System.Int32", ReflectionHelper.ParseReflectionName("System.Int32").Resolve(context).ReflectionName);
-			Assert.AreEqual("System.Int32&", ReflectionHelper.ParseReflectionName("System.Int32&").Resolve(context).ReflectionName);
-			Assert.AreEqual("System.Int32*&", ReflectionHelper.ParseReflectionName("System.Int32*&").Resolve(context).ReflectionName);
-			Assert.AreEqual("System.Int32", ReflectionHelper.ParseReflectionName(typeof(int).AssemblyQualifiedName).Resolve(context).ReflectionName);
-			Assert.AreEqual("System.Action`1[[System.String]]", ReflectionHelper.ParseReflectionName("System.Action`1[[System.String]]").Resolve(context).ReflectionName);
-			Assert.AreEqual("System.Action`1[[System.String]]", ReflectionHelper.ParseReflectionName("System.Action`1[[System.String, mscorlib]]").Resolve(context).ReflectionName);
-			Assert.AreEqual("System.Int32[,,][,]", ReflectionHelper.ParseReflectionName(typeof(int[,][,,]).AssemblyQualifiedName).Resolve(context).ReflectionName);
-			Assert.AreEqual("System.Environment+SpecialFolder", ReflectionHelper.ParseReflectionName("System.Environment+SpecialFolder").Resolve(context).ReflectionName);
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Int32", context).ReflectionName, Is.EqualTo("System.Int32"));
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Int32&", context).ReflectionName, Is.EqualTo("System.Int32&"));
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Int32*&", context).ReflectionName, Is.EqualTo("System.Int32*&"));
+			Assert.That(ReflectionHelper.ParseReflectionName(typeof(int).AssemblyQualifiedName, context).ReflectionName, Is.EqualTo("System.Int32"));
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Action`1[[System.String]]", context).ReflectionName, Is.EqualTo("System.Action`1[[System.String]]"));
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Action`1[[System.String, mscorlib]]", context).ReflectionName, Is.EqualTo("System.Action`1[[System.String]]"));
+			Assert.That(ReflectionHelper.ParseReflectionName(typeof(int[,][,,]).AssemblyQualifiedName, context).ReflectionName, Is.EqualTo("System.Int32[,,][,]"));
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Environment+SpecialFolder", context).ReflectionName, Is.EqualTo("System.Environment+SpecialFolder"));
 		}
 
 		[Test]
 		public void ParseOpenGenericReflectionName()
 		{
-			ITypeReference typeRef = ReflectionHelper.ParseReflectionName("System.Converter`2[[`0],[``0]]");
-			Assert.AreEqual("System.Converter`2[[`0],[``0]]", typeRef.Resolve(new SimpleTypeResolveContext(compilation.MainModule)).ReflectionName);
+			IType converter = ReflectionHelper.ParseReflectionName("System.Converter`2[[`0],[``0]]", new SimpleTypeResolveContext(compilation.MainModule));
+			Assert.That(converter.ReflectionName, Is.EqualTo("System.Converter`2[[`0],[``0]]"));
 			IMethod convertAll = compilation.FindType(typeof(List<>)).GetMethods(m => m.Name == "ConvertAll").Single();
-			Assert.AreEqual("System.Converter`2[[`0],[``0]]", typeRef.Resolve(new SimpleTypeResolveContext(convertAll)).ReflectionName);
+			IType converter2 = ReflectionHelper.ParseReflectionName("System.Converter`2[[`0],[``0]]", new SimpleTypeResolveContext(convertAll));
+			Assert.That(converter2.ReflectionName, Is.EqualTo("System.Converter`2[[`0],[``0]]"));
 		}
 
 		[Test]
 		public void ArrayOfTypeParameter()
 		{
 			var context = new SimpleTypeResolveContext(compilation.MainModule);
-			Assert.AreEqual("`0[,]", ReflectionHelper.ParseReflectionName("`0[,]").Resolve(context).ReflectionName);
+			Assert.That(ReflectionHelper.ParseReflectionName("`0[,]", context).ReflectionName, Is.EqualTo("`0[,]"));
 		}
 
 		[Test]
 		public void ParseNullReflectionName()
 		{
-			Assert.Throws<ArgumentNullException>(() => ReflectionHelper.ParseReflectionName(null));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ArgumentNullException>(() => ReflectionHelper.ParseReflectionName(null, context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName1()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName(string.Empty));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName(string.Empty, context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName2()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("`"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.That(ReflectionHelper.ParseReflectionName("`", context).ReflectionName, Is.EqualTo("`"));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName3()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("``"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.That(ReflectionHelper.ParseReflectionName("``", context).ReflectionName, Is.EqualTo("``"));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName4()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`A"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Action`A", context).ReflectionName, Is.EqualTo("System.Action`A"));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName5()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Environment+"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Environment+", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName5b()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Environment+`"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Environment+`", context).ReflectionName, Is.EqualTo("System.Environment+`"));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName6()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32["));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32[", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName7()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32[`]"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.That(ReflectionHelper.ParseReflectionName("System.Int32[`]", context).ReflectionName, Is.EqualTo("System.Int32"));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName8()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32[,"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32[,", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName9()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32]"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32]", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName10()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32*a"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Int32*a", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName11()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[]]"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[]]", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName12()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32]a]"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32]a]", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName13()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32],]"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32],]", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName14()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32]"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32]", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName15()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32", context));
 		}
 
 		[Test]
 		public void ParseInvalidReflectionName16()
 		{
-			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32],[System.String"));
+			var context = new SimpleTypeResolveContext(compilation.MainModule);
+			Assert.Throws<ReflectionNameParseException>(() => ReflectionHelper.ParseReflectionName("System.Action`1[[System.Int32],[System.String", context));
 		}
 	}
 }

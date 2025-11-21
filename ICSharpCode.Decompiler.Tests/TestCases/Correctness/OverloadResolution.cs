@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2016 Daniel Grunwald
+// Copyright (c) 2016 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -36,8 +36,13 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Correctness
 			Issue1747();
 			CallAmbiguousOutParam();
 			CallWithInParam();
+			CallWithRefReadOnlyParam();
+#if CS90
+			NativeIntTests(new IntPtr(1), 2);
+#endif
 			Issue2444.M2();
 			Issue2741.B.Test(new Issue2741.C());
+			ExtensionMethodDemo.Issue2165.Test();
 		}
 
 		#region ConstructorTest
@@ -274,6 +279,73 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Correctness
 		}
 		#endregion
 
+		#region Ref readonly Parameter
+
+		static void CallWithRefReadOnlyParam()
+		{
+#if CS120
+#pragma warning disable CS9193
+			Console.WriteLine("OverloadSetWithRefReadOnlyParam:");
+			OverloadSetWithRefReadOnlyParam(1);
+			OverloadSetWithRefReadOnlyParam(2L);
+			int i = 3;
+			OverloadSetWithRefReadOnlyParam(in i);
+			OverloadSetWithRefReadOnlyParam((long)4);
+
+			Console.WriteLine("OverloadSetWithRefReadOnlyParam2:");
+			OverloadSetWithRefReadOnlyParam2(1);
+			OverloadSetWithRefReadOnlyParam2((object)1);
+
+			Console.WriteLine("OverloadSetWithRefReadOnlyParam3:");
+			OverloadSetWithRefReadOnlyParam3(1);
+			OverloadSetWithRefReadOnlyParam3<int>(2);
+			OverloadSetWithRefReadOnlyParam3((object)3);
+
+			Console.WriteLine("RefReadOnlyVsRegularParam:");
+			RefReadOnlyVsRegularParam(1);
+			i = 2;
+			RefReadOnlyVsRegularParam(in i);
+#endif
+		}
+
+#if CS120
+		static void OverloadSetWithRefReadOnlyParam(ref readonly int i)
+		{
+			Console.WriteLine("ref readonly int " + i);
+		}
+		static void OverloadSetWithRefReadOnlyParam(long l)
+		{
+			Console.WriteLine("long " + l);
+		}
+		static void OverloadSetWithRefReadOnlyParam2(ref readonly long i)
+		{
+			Console.WriteLine("ref readonly long " + i);
+		}
+		static void OverloadSetWithRefReadOnlyParam2(object o)
+		{
+			Console.WriteLine("object " + o);
+		}
+		static void OverloadSetWithRefReadOnlyParam3(ref readonly int i)
+		{
+			Console.WriteLine("ref readonly int " + i);
+		}
+		static void OverloadSetWithRefReadOnlyParam3<T>(T a)
+		{
+			Console.WriteLine("T " + a);
+		}
+		static void RefReadOnlyVsRegularParam(ref readonly int i)
+		{
+			Console.WriteLine("ref readonly int " + i);
+		}
+		static void RefReadOnlyVsRegularParam(int i)
+		{
+			Console.WriteLine("int " + i);
+		}
+
+#endif
+
+		#endregion
+
 		#region In Parameter
 		static void CallWithInParam()
 		{
@@ -336,6 +408,34 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Correctness
 		}
 #endif
 		#endregion
+
+#if CS90
+		static void NativeIntTests(IntPtr i1, nint i2)
+		{
+			Console.WriteLine("NativeIntTests(i1):");
+			ObjectOrLong((object)i1);
+			ObjectOrLong((long)i1);
+			Console.WriteLine("NativeIntTests(i2):");
+			ObjectOrLong((object)i2);
+			ObjectOrLong((long)i2);
+			Console.WriteLine("NativeIntTests(new IntPtr):");
+			ObjectOrLong((object)new IntPtr(3));
+			ObjectOrLong((long)new IntPtr(3));
+			Console.WriteLine("NativeIntTests(IntPtr.Zero):");
+			ObjectOrLong((object)IntPtr.Zero);
+			ObjectOrLong((long)IntPtr.Zero);
+		}
+
+		static void ObjectOrLong(object o)
+		{
+			Console.WriteLine("object " + o);
+		}
+
+		static void ObjectOrLong(long l)
+		{
+			Console.WriteLine("long " + l);
+		}
+#endif
 
 		#region #2444
 		public struct Issue2444
@@ -448,6 +548,49 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Correctness
 			set {
 				Console.WriteLine("IndexerTests.set_Item(int key, object value)");
 			}
+		}
+	}
+}
+
+namespace ExtensionMethodDemo
+{
+	// First extension class with an out int parameter
+	public static class StringExtensions
+	{
+		public static bool TryParseCustom(this string input, out int result)
+		{
+			return int.TryParse(input, out result);
+		}
+	}
+
+	// Second extension class with an out double parameter
+	public static class StringDoubleExtensions
+	{
+		public static bool TryParseCustom(this string input, out double result)
+		{
+			return double.TryParse(input, out result);
+		}
+	}
+
+	class Issue2165
+	{
+		public static void Test()
+		{
+			string value1 = "123";
+			string value2 = "123.45";
+#if CS70
+			// Use the int version with extension method syntax
+			if (value1.TryParseCustom(out int intResult))
+			{
+				Console.WriteLine("Parsed int: " + intResult);
+			}
+
+			// Use the double version with extension method syntax
+			if (value2.TryParseCustom(out double doubleResult))
+			{
+				Console.WriteLine("Parsed double: " + doubleResult);
+			}
+#endif
 		}
 	}
 }

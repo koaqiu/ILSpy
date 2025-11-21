@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -14,6 +14,8 @@ namespace ICSharpCode.Decompiler
 {
 	public static partial class SRMExtensions
 	{
+		internal const GenericParameterAttributes AllowByRefLike = (GenericParameterAttributes)0x0020;
+
 		public static ImmutableArray<MethodImplementationHandle> GetMethodImplementations(
 			this MethodDefinitionHandle handle, MetadataReader reader)
 		{

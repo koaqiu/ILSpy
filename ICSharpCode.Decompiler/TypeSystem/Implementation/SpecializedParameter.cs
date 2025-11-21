@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Daniel Grunwald
+// Copyright (c) 2018 Daniel Grunwald
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -37,9 +37,6 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 
 		IEnumerable<IAttribute> IParameter.GetAttributes() => baseParameter.GetAttributes();
 		ReferenceKind IParameter.ReferenceKind => baseParameter.ReferenceKind;
-		bool IParameter.IsRef => baseParameter.IsRef;
-		bool IParameter.IsOut => baseParameter.IsOut;
-		bool IParameter.IsIn => baseParameter.IsIn;
 		bool IParameter.IsParams => baseParameter.IsParams;
 		bool IParameter.IsOptional => baseParameter.IsOptional;
 		bool IParameter.HasConstantValueInSignature => baseParameter.HasConstantValueInSignature;

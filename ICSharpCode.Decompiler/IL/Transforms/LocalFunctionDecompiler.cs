@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019 Siegfried Pammer
+// Copyright (c) 2019 Siegfried Pammer
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -80,7 +80,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			// Disable the transform if we are decompiling a display-class or local function method:
 			// This happens if a local function or display class is selected in the ILSpy tree view.
 			if (IsLocalFunctionMethod(function.Method, context) || IsLocalFunctionDisplayClass(
-					function.Method.ParentModule.PEFile,
+					function.Method.ParentModule.MetadataFile,
 					(TypeDefinitionHandle)function.Method.DeclaringTypeDefinition.MetadataToken,
 					context)
 				)
@@ -142,9 +142,20 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					{
 						DetermineCaptureAndDeclarationScope(info, useSite);
 
-						if (context.Function.Method.IsConstructor && localFunction.DeclarationScope == null)
+						if (context.Function.Method.IsConstructor)
 						{
-							localFunction.DeclarationScope = BlockContainer.FindClosestContainer(useSite);
+							if (localFunction.DeclarationScope == null)
+							{
+								localFunction.DeclarationScope = BlockContainer.FindClosestContainer(useSite);
+							}
+							else
+							{
+								localFunction.DeclarationScope = FindCommonAncestorInstruction<BlockContainer>(useSite, localFunction.DeclarationScope);
+								if (localFunction.DeclarationScope == null)
+								{
+									localFunction.DeclarationScope = (BlockContainer)context.Function.Body;
+								}
+							}
 						}
 					}
 
@@ -462,7 +473,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			else
 			{
 				var ilReader = context.CreateILReader();
-				var body = context.PEFile.Reader.GetMethodBody(methodDefinition.RelativeVirtualAddress);
+				var body = context.PEFile.GetMethodBody(methodDefinition.RelativeVirtualAddress);
 
 				function = ilReader.ReadIL((MethodDefinitionHandle)targetMethod.MetadataToken, body,
 					genericContext.GetValueOrDefault(), ILFunctionKind.LocalFunction,
@@ -493,7 +504,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			}
 			if (targetMethod.TypeParameters.Count > 0)
 			{
-				var lastParams = targetMethod.Parameters.Where(p => IsClosureParameter(p, this.resolveContext)).SelectMany(p => UnwrapByRef(p.Type).TypeArguments)
+				var lastParams = targetMethod.Parameters.Where(p => IsClosureParameter(p, this.resolveContext)).SelectMany(p => p.Type.UnwrapByRef().TypeArguments)
 					.Select(pt => (int?)targetMethod.TypeParameters.IndexOf(pt)).DefaultIfEmpty().Max();
 				if (lastParams != null && lastParams.GetValueOrDefault() + 1 > skipCount)
 					skipCount = lastParams.GetValueOrDefault() + 1;
@@ -556,32 +567,17 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 
 		internal static bool IsClosureParameter(IParameter parameter, ITypeResolveContext context)
 		{
-			if (!parameter.IsRef)
+			return IsClosureParameter(parameter, context.CurrentTypeDefinition);
+		}
+
+		internal static bool IsClosureParameter(IParameter parameter, ITypeDefinition currentTypeDefinition)
+		{
+			if (parameter.Type is not ByReferenceType brt)
 				return false;
-			var type = ((ByReferenceType)parameter.Type).ElementType.GetDefinition();
+			var type = brt.ElementType.GetDefinition();
 			return type != null
 				&& type.Kind == TypeKind.Struct
-				&& TransformDisplayClassUsage.IsPotentialClosure(context.CurrentTypeDefinition, type);
-		}
-
-		static IType UnwrapByRef(IType type)
-		{
-			if (type is ByReferenceType byRef)
-			{
-				type = byRef.ElementType;
-			}
-			return type;
-		}
-
-		internal static ILInstruction GetStatement(ILInstruction inst)
-		{
-			while (inst.Parent != null)
-			{
-				if (inst.Parent is Block b && b.Kind == BlockKind.ControlFlow)
-					return inst;
-				inst = inst.Parent;
-			}
-			return inst;
+				&& TransformDisplayClassUsage.IsPotentialClosure(currentTypeDefinition, type);
 		}
 
 		LocalFunctionMethod ReduceToLocalFunction(IMethod method, int typeParametersToRemove)
@@ -667,6 +663,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			switch (useSite)
 			{
 				case CallInstruction call:
+					if (DelegateConstruction.MatchDelegateConstruction(useSite, out _, out _, out _))
+					{
+						// if this is a delegate construction, skip the use-site, because the capture scope
+						// was already determined when analyzing "this".
+						break;
+					}
 					int firstArgumentIndex = info.Definition.Method.IsStatic ? 0 : 1;
 					for (int i = call.Arguments.Count - 1; i >= firstArgumentIndex; i--)
 					{
@@ -733,13 +735,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 
 			ILInstruction GetClosureInitializer(ILVariable variable)
 			{
-				var type = UnwrapByRef(variable.Type).GetDefinition();
+				var type = variable.Type.UnwrapByRef().GetDefinition();
 				if (type == null)
 					return null;
 				if (variable.Kind == VariableKind.Parameter)
 					return null;
 				if (type.Kind == TypeKind.Struct)
-					return GetStatement(variable.AddressInstructions.OrderBy(i => i.StartILOffset).First());
+					return Block.GetContainingStatement(variable.AddressInstructions.OrderBy(i => i.StartILOffset).First());
 				else
 					return (StLoc)variable.StoreInstructions[0];
 			}
@@ -764,10 +766,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			if (method.MetadataToken.IsNil)
 				return false;
-			return IsLocalFunctionMethod(method.ParentModule.PEFile, (MethodDefinitionHandle)method.MetadataToken, context);
+			return IsLocalFunctionMethod(method.ParentModule.MetadataFile, (MethodDefinitionHandle)method.MetadataToken, context);
 		}
 
-		public static bool IsLocalFunctionMethod(PEFile module, MethodDefinitionHandle methodHandle, ILTransformContext context = null)
+		public static bool IsLocalFunctionMethod(MetadataFile module, MethodDefinitionHandle methodHandle, ILTransformContext context = null)
 		{
 			if (context != null && context.PEFile != module)
 				return false;
@@ -785,7 +787,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			return true;
 		}
 
-		public static bool LocalFunctionNeedsAccessibilityChange(PEFile module, MethodDefinitionHandle methodHandle)
+		public static bool LocalFunctionNeedsAccessibilityChange(MetadataFile module, MethodDefinitionHandle methodHandle)
 		{
 			if (!IsLocalFunctionMethod(module, methodHandle))
 				return false;
@@ -806,7 +808,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			return false;
 		}
 
-		public static bool IsLocalFunctionDisplayClass(PEFile module, TypeDefinitionHandle typeHandle, ILTransformContext context = null)
+		public static bool IsLocalFunctionDisplayClass(MetadataFile module, TypeDefinitionHandle typeHandle, ILTransformContext context = null)
 		{
 			if (context != null && context.PEFile != module)
 				return false;
