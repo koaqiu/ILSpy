@@ -30,18 +30,20 @@ using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-using ICSharpCode.AvalonEdit.Highlighting;
+using AvaloniaEdit.Highlighting;
+
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Disassembler;
 using ICSharpCode.Decompiler.Metadata;
+using ICSharpCode.Decompiler.Output;
 using ICSharpCode.Decompiler.Solution;
 using ICSharpCode.Decompiler.TypeSystem;
-using ICSharpCode.ILSpy.Util;
 using ICSharpCode.ILSpyX;
 
 using ILCompiler.Reflection.ReadyToRun;
 
-using TomsToolbox.Composition;
+using ICSharpCode.ILSpy;
+using ICSharpCode.ILSpy.Languages;
 
 using MetadataReader = System.Reflection.Metadata.MetadataReader;
 
@@ -108,7 +110,10 @@ namespace ICSharpCode.ILSpy.ReadyToRun
 
 	[Export(typeof(Language))]
 	[Shared]
-	internal class ReadyToRunLanguage(SettingsService settingsService, IExportProvider exportProvider) : Language
+	[method: ImportingConstructor]
+	// LanguageService is taken Lazy because it imports Language[] -- a direct LanguageService
+	// dependency creates a constructor-injection cycle that System.Composition refuses.
+	internal class ReadyToRunLanguage(SettingsService settingsService, Lazy<LanguageService> languageService) : Language
 	{
 		private static readonly ConditionalWeakTable<MetadataFile, ReadyToRunReaderCacheEntry> readyToRunReaders = new ConditionalWeakTable<MetadataFile, ReadyToRunReaderCacheEntry>();
 
@@ -227,9 +232,9 @@ namespace ICSharpCode.ILSpy.ReadyToRun
 			}
 		}
 
-		public override RichText GetRichTextTooltip(IEntity entity)
+		public override RichText GetRichText(IEntity entity, ConversionFlags conversionFlags, bool boldTypeNames = false)
 		{
-			return exportProvider.GetExportedValue<LanguageService>().ILLanguage.GetRichTextTooltip(entity);
+			return languageService.Value.GetLanguage("IL").GetRichText(entity, conversionFlags, boldTypeNames);
 		}
 
 		private ReadyToRunReaderCacheEntry GetReader(LoadedAssembly assembly, MetadataFile file)

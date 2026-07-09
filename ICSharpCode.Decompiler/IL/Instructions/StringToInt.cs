@@ -17,7 +17,6 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-
 using System.Collections.Generic;
 
 using ICSharpCode.Decompiler.TypeSystem;
@@ -53,7 +52,7 @@ namespace ICSharpCode.Decompiler.IL
 			return dict;
 		}
 
-		public override void WriteTo(ITextOutput output, ILAstWritingOptions options)
+		protected override void WriteToCore(ITextOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
 			output.Write("string.to.int ");

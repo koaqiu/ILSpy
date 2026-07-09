@@ -69,7 +69,9 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						}
 						else
 						{
-							stloc.ReplaceWith(stloc.Value);
+							var value = stloc.Value;
+							stloc.ReplaceWith(value);
+							context.EndStep(value);
 						}
 						if (stloc.Value is LdLoc ldloc)
 						{
@@ -78,7 +80,6 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					}
 				}
 			}
-
 
 			// Try to infer IType of stack slots that are of StackType.Ref:
 			foreach (var v in function.Variables)

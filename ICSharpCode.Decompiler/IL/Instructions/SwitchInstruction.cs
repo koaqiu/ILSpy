@@ -83,7 +83,7 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
-		public override void WriteTo(ITextOutput output, ILAstWritingOptions options)
+		protected override void WriteToCore(ITextOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
 			output.Write("switch");
@@ -203,6 +203,12 @@ namespace ICSharpCode.Decompiler.IL
 		public bool HasNullLabel { get; set; }
 
 		/// <summary>
+		/// If true, this section only contains a compiler-generated throw helper
+		/// used in a switch expression and will not be visible in the decompiled source code.
+		/// </summary>
+		public bool IsCompilerGeneratedDefaultSection { get; set; }
+
+		/// <summary>
 		/// The set of labels that cause execution to jump to this switch section.
 		/// </summary>
 		public LongSet Labels { get; set; }
@@ -218,9 +224,11 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
-		public override void WriteTo(ITextOutput output, ILAstWritingOptions options)
+		protected override void WriteToCore(ITextOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
+			if (IsCompilerGeneratedDefaultSection)
+				output.Write("generated.");
 			output.WriteLocalReference("case", this, isDefinition: true);
 			output.Write(' ');
 			if (HasNullLabel)

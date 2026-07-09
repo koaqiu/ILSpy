@@ -16,9 +16,12 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Threading;
@@ -40,8 +43,8 @@ namespace ICSharpCode.Decompiler.CSharp
 		readonly bool isInheritedRecord;
 		readonly bool isStruct;
 		readonly bool isSealed;
-		readonly IMethod primaryCtor;
-		readonly IType baseClass;
+		readonly IMethod? primaryCtor;
+		readonly IType? baseClass;
 		readonly Dictionary<IField, IProperty> backingFieldToAutoProperty = new Dictionary<IField, IProperty>();
 		readonly Dictionary<IProperty, IField> autoPropertyToBackingField = new Dictionary<IProperty, IField>();
 		readonly Dictionary<IParameter, IProperty> primaryCtorParameterToAutoProperty = new Dictionary<IParameter, IProperty>();
@@ -76,7 +79,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 			}
 
-			bool IsAutoProperty(IProperty p, out IField field)
+			bool IsAutoProperty(IProperty p, [NotNullWhen(true)] out IField? field)
 			{
 				field = null;
 				if (p.IsStatic)
@@ -109,7 +112,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				return field.Name == $"<{p.Name}>k__BackingField";
 			}
 
-			bool IsAutoGetter(IMethod method, out IField field)
+			bool IsAutoGetter(IMethod method, [NotNullWhen(true)] out IField? field)
 			{
 				field = null;
 				var body = DecompileBody(method);
@@ -130,7 +133,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 			}
 
-			bool IsAutoSetter(IMethod method, out IField field)
+			bool IsAutoSetter(IMethod method, [NotNullWhen(true)] out IField? field)
 			{
 				field = null;
 				Debug.Assert(!method.IsStatic);
@@ -138,7 +141,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (body == null)
 					return false;
 				// this.field = value;
-				ILInstruction valueInst;
+				ILInstruction? valueInst;
 				if (method.IsStatic)
 				{
 					if (!body.Instructions[0].MatchStsFld(out field, out valueInst))
@@ -159,7 +162,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 		}
 
-		IMethod DetectPrimaryConstructor()
+		IMethod? DetectPrimaryConstructor()
 		{
 			Debug.Assert(recordTypeDef.IsRecord);
 			if (!settings.UsePrimaryConstructorSyntax)
@@ -167,19 +170,43 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			var subst = recordTypeDef.AsParameterizedType().GetSubstitution();
 
-			IMethod guessedPrimaryCtor = null;
+			Dictionary<string, IMember> nameToMemberMap = new Dictionary<string, IMember>(StringComparer.Ordinal);
+			Dictionary<IMethod, IMethod?> ctorChainMap = new Dictionary<IMethod, IMethod?>();
+
+			foreach (IMember m in recordTypeDef.GetMembers(m => m.SymbolKind is SymbolKind.Property or SymbolKind.Field, GetMemberOptions.ReturnMemberDefinitions))
+			{
+				nameToMemberMap[m.Name] = m;
+			}
+
+			IMethod? guessedPrimaryCtor = null;
+			Accessibility expectedCtorAccessibility = recordTypeDef.IsAbstract ? Accessibility.Protected : Accessibility.Public;
 
 			foreach (var method in recordTypeDef.Methods)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 				if (method.IsStatic || !method.IsConstructor)
 					continue;
+				if (method.Accessibility != expectedCtorAccessibility)
+					continue;
 				if (IsCopyConstructor(method))
 				{
 					continue;
 				}
+				var body = DecompileBody(method);
+				if (body == null)
+				{
+					continue;
+				}
+				IMethod? chainedCtor = (IMethod?)FindChainedCtor(body)?.MemberDefinition;
+				ctorChainMap[method] = chainedCtor;
+
+				if (chainedCtor != null && chainedCtor.DeclaringTypeDefinition!.Equals(recordTypeDef))
+				{
+					continue;
+				}
+
 				var m = method.Specialize(subst);
-				if (IsPrimaryConstructor(m, method))
+				if (IsPrimaryConstructor(body, m, method))
 				{
 					if (guessedPrimaryCtor == null)
 					{
@@ -194,6 +221,26 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 			}
 
+			if (guessedPrimaryCtor != null)
+			{
+				foreach (var (source, target) in ctorChainMap)
+				{
+					if (guessedPrimaryCtor.Equals(source))
+						continue;
+					// in a record with a primary ctor every other ctor must call the primary ctor
+					// at the end of the ctor chain.
+					// if the target is null or a ctor of another type, we found a ctor that does not
+					// follow this rule.
+					// we don't have to check the full chain, because the C# compiler enforces that
+					// there are no loops in the ctor call graph.
+					if (target == null || !target.DeclaringTypeDefinition!.Equals(recordTypeDef))
+					{
+						guessedPrimaryCtor = null;
+						break;
+					}
+				}
+			}
+
 			if (guessedPrimaryCtor == null)
 			{
 				primaryCtorParameterToAutoProperty.Clear();
@@ -201,7 +248,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			foreach (var (parameter, property) in primaryCtorParameterToAutoProperty.ToArray())
 			{
-				if (!parameter.Owner.Equals(guessedPrimaryCtor))
+				if (!parameter.Owner!.Equals(guessedPrimaryCtor))
 				{
 					primaryCtorParameterToAutoProperty.Remove(parameter);
 				}
@@ -213,12 +260,22 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			return guessedPrimaryCtor;
 
-			bool IsPrimaryConstructor(IMethod method, IMethod unspecializedMethod)
+			bool IsPrimaryConstructor(Block body, IMethod method, IMethod unspecializedMethod)
 			{
-				Debug.Assert(method.IsConstructor);
-				var body = DecompileBody(method);
-				if (body == null)
-					return false;
+				foreach (IParameter p in unspecializedMethod.Parameters)
+				{
+					// ref and out are not valid modifiers in this context
+					if (p.ReferenceKind is ReferenceKind.Ref or ReferenceKind.Out)
+						return false;
+
+					// for each positional parameter there must be a field or property of the same name and type
+					if (!nameToMemberMap.TryGetValue(p.Name, out var member))
+						return false;
+
+					var paramType = p.ReferenceKind != ReferenceKind.None ? p.Type.UnwrapByRef() : p.Type;
+					if (!NormalizeTypeVisitor.TypeErasure.EquivalentTypes(paramType, member.ReturnType))
+						return false;
+				}
 
 				if (!isStruct)
 				{
@@ -236,49 +293,85 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (body.Instructions.Count < addonInst)
 					return false;
 
+				int parameterIndex = 0;
+
 				for (int i = 0; i < body.Instructions.Count - addonInst; i++)
 				{
 					if (!body.Instructions[i].MatchStFld(out var target, out var field, out var valueInst))
 						return false;
 					if (!target.MatchLdThis())
 						return false;
-					if (i < method.Parameters.Count)
+					// allow assignments to fields that are not backing fields of auto-properties
+					if (!backingFieldToAutoProperty.TryGetValue(field, out var property))
+						continue;
+					if (valueInst.MatchLdLoc(out var v))
 					{
-						if (method.Parameters[i].ReferenceKind is ReferenceKind.In or ReferenceKind.RefReadOnly)
-						{
-							if (!valueInst.MatchLdObj(out valueInst, out _))
-								return false;
-						}
-						if (!valueInst.MatchLdLoc(out var value))
+						if (!ValidateParameter(v, parameterIndex))
 							return false;
-						if (!(value.Kind == VariableKind.Parameter && value.Index >= 0 && value.Index < method.Parameters.Count))
-							return false;
-
-						if (!backingFieldToAutoProperty.TryGetValue(field, out var property))
-						{
-							return false;
-						}
-
-						IParameter parameter = unspecializedMethod.Parameters[i];
-						if (primaryCtorParameterToAutoProperty.ContainsKey(parameter))
-						{
-							return false;
-						}
-
-						if (recordTypeDef.Kind != TypeKind.Struct)
-						{
-							if (!(property.CanSet && property.Setter.IsInitOnly))
-							{
-								continue;
-							}
-						}
-
-						primaryCtorParameterToAutoProperty.Add(parameter, property);
+						parameterIndex = v.Index!.Value;
 					}
+					else if (valueInst.MatchLdObj(out valueInst, out _) && valueInst.MatchLdLoc(out v))
+					{
+						if (!ValidateParameter(v, parameterIndex))
+							return false;
+						parameterIndex = v.Index!.Value;
+						if (method.Parameters[parameterIndex].ReferenceKind is ReferenceKind.None)
+						{
+							return false;
+						}
+					}
+					else
+					{
+						continue;
+					}
+					IParameter parameter = unspecializedMethod.Parameters[parameterIndex];
+					if (primaryCtorParameterToAutoProperty.ContainsKey(parameter))
+					{
+						continue;
+					}
+
+					if (recordTypeDef.Kind != TypeKind.Struct)
+					{
+						if (!(property.CanSet && property.Setter.IsInitOnly))
+						{
+							continue;
+						}
+					}
+					primaryCtorParameterToAutoProperty.Add(parameter, property);
 				}
 
 				var returnInst = body.Instructions.LastOrDefault();
 				return returnInst != null && returnInst.MatchReturn(out var retVal) && retVal.MatchNop();
+
+				bool ValidateParameter(ILVariable v, int expectedMinimumIndex)
+				{
+					if (v.Kind != VariableKind.Parameter)
+						return false;
+					Debug.Assert(v.Index.HasValue);
+					if (v.Index < 0 || v.Index >= unspecializedMethod.Parameters.Count)
+						return false;
+					var parameter = unspecializedMethod.Parameters[v.Index.Value];
+					if (primaryCtorParameterToAutoProperty.ContainsKey(parameter))
+						return true;
+					return v.Index >= expectedMinimumIndex;
+				}
+			}
+
+			IMethod? FindChainedCtor(Block body)
+			{
+				// look for a call instruction or assignment to a chained constructor
+				foreach (var inst in body.Instructions)
+				{
+					switch (inst)
+					{
+						case Call { Method: { IsConstructor: true } ctor }:
+							return ctor;
+						case StObj { Value: NewObj { Method: var ctor } } stObj when stObj.Target.MatchLdThis():
+							return ctor;
+					}
+				}
+
+				return null;
 			}
 		}
 
@@ -305,7 +398,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		/// <summary>
 		/// Gets the detected primary constructor. Returns null, if there was no primary constructor detected.
 		/// </summary>
-		public IMethod PrimaryConstructor => primaryCtor;
+		public IMethod? PrimaryConstructor => primaryCtor;
 
 		public bool IsInheritedRecord => isInheritedRecord;
 
@@ -398,9 +491,9 @@ namespace ICSharpCode.Decompiler.CSharp
 				&& autoPropertyToPrimaryCtorParameter.ContainsKey((IProperty)property.Specialize(subst));
 		}
 
-		internal Dictionary<IParameter, (IProperty, IField)> GetParameterToBackingStoreMap()
+		internal Dictionary<IParameter, (IProperty?, IField)> GetParameterToBackingStoreMap()
 		{
-			var result = new Dictionary<IParameter, (IProperty, IField)>();
+			var result = new Dictionary<IParameter, (IProperty?, IField)>();
 			foreach (var (parameter, property) in primaryCtorParameterToAutoProperty)
 			{
 				result.Add(parameter, (property, autoPropertyToBackingField[property]));
@@ -473,9 +566,11 @@ namespace ICSharpCode.Decompiler.CSharp
 			// Then all the fields are copied over
 			foreach (var member in orderedMembers)
 			{
-				if (!(member is IField field))
+				if (member.IsStatic)
+					continue;
+				if (member is not IField field)
 				{
-					if (!autoPropertyToBackingField.TryGetValue((IProperty)member, out field))
+					if (!autoPropertyToBackingField.TryGetValue((IProperty)member, out field!))
 						continue;
 				}
 				if (pos >= body.Instructions.Count)
@@ -594,7 +689,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				trueInst = Block.Unwrap(trueInst);
 				if (!MatchStringBuilderAppend(trueInst, builder, out var val))
 					return false;
-				if (!(val.MatchLdStr(out string text) && text == ", "))
+				if (!(val.MatchLdStr(out string? text) && text == ", "))
 					return false;
 				pos++;
 
@@ -626,7 +721,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				callvirt Append(ldloc builder, ldstr " = ")
 				callvirt Append(ldloc builder, constrained[System.Int32].callvirt ToString(ldflda B(ldloc this)))
 				leave IL_0000 (ldc.i4 1) */
-				if (!MatchStringBuilderAppendConstant(out string text))
+				if (!MatchStringBuilderAppendConstant(out string? text))
 					return false;
 				string expectedText = (needsComma ? ", " : "") + member.Name + " = ";
 				if (text != expectedText)
@@ -701,10 +796,10 @@ namespace ICSharpCode.Decompiler.CSharp
 				return true;
 			}
 
-			bool MatchStringBuilderAppendConstant(out string text)
+			bool MatchStringBuilderAppendConstant([NotNullWhen(true)] out string? text)
 			{
 				text = null;
-				while (MatchStringBuilderAppend(body.Instructions[pos], builder, out var val) && val.MatchLdStr(out string valText))
+				while (MatchStringBuilderAppend(body.Instructions[pos], builder, out var val) && val.MatchLdStr(out string? valText))
 				{
 					text += valText;
 					pos++;
@@ -713,7 +808,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 		}
 
-		private bool MatchStringBuilderAppend(ILInstruction inst, ILVariable sb, out ILInstruction val)
+		private bool MatchStringBuilderAppend(ILInstruction inst, ILVariable sb, [NotNullWhen(true)] out ILInstruction? val)
 		{
 			val = null;
 			if (!(inst is CallVirt { Method: { Name: "Append", DeclaringType: { Namespace: "System.Text", Name: "StringBuilder" } } } call))
@@ -789,7 +884,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				{
 					return val != null && val.Length == 1 && call.Arguments[1].MatchLdcI4(val[0]);
 				}
-				return call.Arguments[1].MatchLdStr(out string val1) && val1 == val;
+				return call.Arguments[1].MatchLdStr(out string? val1) && val1 == val;
 			}
 		}
 
@@ -941,7 +1036,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 		}
 
-		private bool MatchGetEqualityContract(ILInstruction inst, out ILInstruction target)
+		private bool MatchGetEqualityContract(ILInstruction inst, [NotNullWhen(true)] out ILInstruction? target)
 		{
 			target = null;
 			if (!(inst is CallInstruction { Method: { Name: "get_EqualityContract" } } call))
@@ -1075,7 +1170,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		bool IsGeneratedDeconstruct(IMethod method)
 		{
-			Debug.Assert(method.Name == "Deconstruct" && method.Parameters.Count == primaryCtor.Parameters.Count);
+			Debug.Assert(method.Name == "Deconstruct" && method.Parameters.Count == primaryCtor?.Parameters.Count);
 
 			if (!method.ReturnType.IsKnownType(KnownTypeCode.Void))
 				return false;
@@ -1131,7 +1226,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			return returnInst != null && returnInst.MatchReturn(out var retVal) && retVal.MatchNop();
 		}
 
-		bool MatchMemberAccess(ILInstruction inst, out ILInstruction target, out IMember member)
+		bool MatchMemberAccess(ILInstruction inst, [NotNullWhen(true)] out ILInstruction? target, [NotNullWhen(true)] out IMember? member)
 		{
 			target = null;
 			member = null;
@@ -1148,9 +1243,9 @@ namespace ICSharpCode.Decompiler.CSharp
 				member = property;
 				return true;
 			}
-			else if (inst.MatchLdFld(out target, out IField field))
+			else if (inst.MatchLdFld(out target, out IField? field))
 			{
-				if (backingFieldToAutoProperty.TryGetValue(field, out property))
+				if (backingFieldToAutoProperty.TryGetValue(field, out property!))
 					member = property;
 				else
 					member = field;
@@ -1162,7 +1257,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 		}
 
-		Block DecompileBody(IMethod method)
+		Block? DecompileBody(IMethod method)
 		{
 			if (method == null || method.MetadataToken.IsNil)
 				return null;

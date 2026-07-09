@@ -18,9 +18,9 @@
 
 using System.Xml.Linq;
 
-using ICSharpCode.ILSpyX.Settings;
+using CommunityToolkit.Mvvm.ComponentModel;
 
-using TomsToolbox.Wpf;
+using ICSharpCode.ILSpyX.Settings;
 
 namespace ICSharpCode.ILSpy.ReadyToRun
 {

@@ -1,3 +1,21 @@
+// Copyright (c) 2019 Christoph Wille
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this
+// software and associated documentation files (the "Software"), to deal in the Software
+// without restriction, including without limitation the rights to use, copy, modify, merge,
+// publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+// to whom the Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all copies or
+// substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+// INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+// PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+// FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS IN THE SOFTWARE.
+
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -10,6 +28,7 @@ using System.Reflection.PortableExecutable;
 using System.Threading;
 using System.Threading.Tasks;
 
+using ICSharpCode.BamlDecompiler;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
@@ -52,6 +71,15 @@ Examples:
     Generate a HTML diagrammer containing filtered type info into a custom output folder
     (including types in the LightJson namespace while excluding types in nested LightJson.Serialization namespace)
         ilspycmd sample.dll --generate-diagrammer -o c:\diagrammer --generate-diagrammer-include LightJson\\..+ --generate-diagrammer-exclude LightJson\\.Serialization\\..+
+
+    List all embedded resources in a WPF assembly (including BAML entries inside .g.resources containers).
+        ilspycmd sample.dll --list-resources
+
+    Extract a single resource. If the name ends with .baml, the output is decompiled XAML; otherwise raw bytes.
+        ilspycmd sample.dll --resource sample.g.resources/mainwindow.baml -o c:\decompiled
+
+    Decompile assembly as a compilable project and convert all BAML resources to XAML Page items.
+        ilspycmd sample.dll -p -o c:\decompiled --decompile-baml
 ")]
 	[HelpOption("-h|--help")]
 	[ProjectOptionRequiresOutputDirectoryValidation]
@@ -92,6 +120,15 @@ Examples:
 
 		[Option("-l|--list <entity-type(s)>", "Lists all entities of the specified type(s). Valid types: c(lass), i(nterface), s(truct), d(elegate), e(num)", CommandOptionType.MultipleValue)]
 		public string[] EntityTypes { get; } = Array.Empty<string>();
+
+		[Option("--list-resources", "Lists all embedded resources in the assembly. Entries inside .resources containers are listed individually as '<container>/<entry>'.", CommandOptionType.NoValue)]
+		public bool ListResourcesFlag { get; }
+
+		[Option("--resource <name>", "Extract a single resource by name (as printed by --list-resources). Resources whose name ends with '.baml' are decompiled to XAML.", CommandOptionType.SingleValue)]
+		public string ResourceName { get; }
+
+		[Option("--decompile-baml", "When used with -p, decompile BAML resources to XAML files (Page items) instead of leaving them as raw byte streams.", CommandOptionType.NoValue)]
+		public bool DecompileBamlFlag { get; }
 
 		public string DecompilerVersion => "ilspycmd: " + typeof(ILSpyCmdProgram).Assembly.GetName().Version.ToString() +
 				Environment.NewLine
@@ -152,8 +189,8 @@ Examples:
 		public bool ReportExcludedTypes { get; set; }
 
 		[Option(generateDiagrammerCmd + "-docs", "The path or file:// URI of the XML file containing the target assembly's documentation comments." +
-			" You only need to set this if a) you want your diagrams annotated with them and b) the file name differs from that of the assmbly." +
-			" To enable XML documentation output for your assmbly, see https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/#create-xml-documentation-output",
+			" You only need to set this if a) you want your diagrams annotated with them and b) the file name differs from that of the assembly." +
+			" To enable XML documentation output for your assembly, see https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/#create-xml-documentation-output",
 			CommandOptionType.SingleValue)]
 		public string XmlDocs { get; set; }
 
@@ -257,8 +294,8 @@ Examples:
 					var checkResult = await updateCheckTask;
 					if (null != checkResult && checkResult.UpdateRecommendation)
 					{
-						Console.WriteLine("You are not using the latest version of the tool, please update.");
-						Console.WriteLine($"Latest version is '{checkResult.LatestVersion}' (yours is '{checkResult.RunningVersion}')");
+						app.Error.WriteLine("You are not using the latest version of the tool, please update.");
+						app.Error.WriteLine($"Latest version is '{checkResult.LatestVersion}' (yours is '{checkResult.RunningVersion}')");
 					}
 				}
 			}
@@ -306,6 +343,20 @@ Examples:
 				{
 					return DumpPackageAssemblies(fileName, outputDirectory, app);
 				}
+				else if (ListResourcesFlag)
+				{
+					if (outputDirectory != null)
+					{
+						string outputName = Path.GetFileNameWithoutExtension(fileName);
+						output = File.CreateText(Path.Combine(outputDirectory, outputName) + ".resources.txt");
+					}
+
+					return ListResources(fileName, output);
+				}
+				else if (ResourceName != null)
+				{
+					return ExtractResource(fileName, ResourceName, output, outputDirectory, app);
+				}
 				else
 				{
 					if (outputDirectory != null)
@@ -338,7 +389,7 @@ Examples:
 			{
 				try
 				{
-					ILSpyX.Settings.ILSpySettings.SettingsFilePathProvider = new ILSpyX.Settings.DefaultSettingsFilePathProvider(ILSpySettingsFile);
+					ILSpyX.Settings.ILSpySettings.SettingsFilePathProvider = () => ILSpySettingsFile;
 					var settingsService = new ILSpyX.Settings.SettingsServiceBase(ILSpyX.Settings.ILSpySettings.Load());
 					decompilerSettings = settingsService.GetSettings<ILSpyX.Settings.DecompilerSettings>();
 				}
@@ -425,7 +476,86 @@ Examples:
 			{
 				if (!kinds.Contains(type.Kind))
 					continue;
-				output.WriteLine($"{type.Kind} {type.FullName}");
+				output.WriteLine($"{type.Kind} {type.FullTypeName.ReflectionName}");
+			}
+			return 0;
+		}
+
+		int ListResources(string assemblyFileName, TextWriter output)
+		{
+			var module = new PEFile(assemblyFileName);
+			foreach (var path in ResourceExtensions.EnumerateResourcePaths(module))
+			{
+				output.WriteLine(path);
+			}
+			return 0;
+		}
+
+		int ExtractResource(string assemblyFileName, string resourceName, TextWriter output, string outputDirectory, CommandLineApplication app)
+		{
+			var module = new PEFile(assemblyFileName);
+			if (!ResourceExtensions.TryGetResource(module, resourceName, out object value))
+			{
+				app.Error.WriteLine($"Resource '{resourceName}' not found.");
+				app.Error.WriteLine("Available resources:");
+				foreach (var p in ResourceExtensions.EnumerateResourcePaths(module))
+					app.Error.WriteLine("  " + p);
+				return ProgramExitCodes.EX_DATAERR;
+			}
+
+			bool isBaml = resourceName.EndsWith(".baml", StringComparison.OrdinalIgnoreCase);
+			if (isBaml && value is byte[] bamlBytes)
+			{
+				var resolver = new UniversalAssemblyResolver(assemblyFileName, false, module.Metadata.DetectTargetFrameworkId());
+				foreach (var path in (ReferencePaths ?? Array.Empty<string>()))
+					resolver.AddSearchDirectory(path);
+				var bamlSettings = new BamlDecompilerSettings {
+					ThrowOnAssemblyResolveErrors = GetSettings(module).ThrowOnAssemblyResolveErrors
+				};
+
+				using var bamlStream = new MemoryStream(bamlBytes);
+				var xaml = ResourceExtensions.DecompileBaml(module, resolver, bamlStream, bamlSettings, CancellationToken.None);
+				if (outputDirectory != null)
+				{
+					string xamlFile = WholeProjectDecompiler.SanitizeFileName(Path.GetFileNameWithoutExtension(resourceName) + ".xaml");
+					string fullPath = Path.Combine(outputDirectory, xamlFile);
+					xaml.Save(fullPath);
+				}
+				else
+				{
+					output.Write(xaml.ToString());
+				}
+				return 0;
+			}
+
+			if (value is byte[] binary)
+			{
+				if (outputDirectory != null)
+				{
+					string fileName = WholeProjectDecompiler.SanitizeFileName(Path.GetFileName(resourceName));
+					string fullPath = Path.Combine(outputDirectory, fileName);
+					File.WriteAllBytes(fullPath, binary);
+				}
+				else
+				{
+					var stdout = Console.OpenStandardOutput();
+					stdout.Write(binary, 0, binary.Length);
+					stdout.Flush();
+				}
+			}
+			else
+			{
+				string text = value as string ?? value?.ToString() ?? string.Empty;
+				if (outputDirectory != null)
+				{
+					string fileName = WholeProjectDecompiler.SanitizeFileName(Path.GetFileName(resourceName));
+					string fullPath = Path.Combine(outputDirectory, fileName);
+					File.WriteAllText(fullPath, text);
+				}
+				else
+				{
+					output.Write(text);
+				}
 			}
 			return 0;
 		}
@@ -450,7 +580,21 @@ Examples:
 			{
 				resolver.AddSearchDirectory(path);
 			}
-			var decompiler = new WholeProjectDecompiler(GetSettings(module), resolver, null, resolver, TryLoadPDB(module));
+			var settings = GetSettings(module);
+			var debugInfo = TryLoadPDB(module);
+			WholeProjectDecompiler decompiler;
+			if (DecompileBamlFlag)
+			{
+				var bamlTypeSystem = new BamlDecompilerTypeSystem(module, resolver);
+				var bamlSettings = new BamlDecompilerSettings {
+					ThrowOnAssemblyResolveErrors = settings.ThrowOnAssemblyResolveErrors
+				};
+				decompiler = new BamlAwareWholeProjectDecompiler(settings, resolver, resolver, debugInfo, bamlTypeSystem, bamlSettings);
+			}
+			else
+			{
+				decompiler = new WholeProjectDecompiler(settings, resolver, null, resolver, debugInfo);
+			}
 			using (var projectFileWriter = new StreamWriter(File.OpenWrite(projectFileName)))
 				return decompiler.DecompileProject(module, Path.GetDirectoryName(projectFileName), projectFileWriter);
 		}
@@ -462,13 +606,230 @@ Examples:
 			if (typeName == null)
 			{
 				output.Write(decompiler.DecompileWholeModuleAsString());
+				return 0;
 			}
-			else
+
+			if (!TryResolveType(decompiler.TypeSystem, typeName, out ITypeDefinition typeDefinition, out string error))
 			{
-				var name = new FullTypeName(typeName);
-				output.Write(decompiler.DecompileTypeAsString(name));
+				Console.Error.WriteLine(error);
+				return ProgramExitCodes.EX_DATAERR;
 			}
+
+			output.Write(decompiler.DecompileTypeAsString(typeDefinition.FullTypeName));
 			return 0;
+		}
+
+		/// <summary>
+		/// Resolves a type name supplied on the command line to a single type definition.
+		/// <para>
+		/// Matching is a ladder of progressively looser rules, each requiring a unique hit:
+		/// the engine's exact reflection-name lookup ("Ns.List`1"); then, against the input
+		/// reduced to FullName shape (parsed via the reflection grammar, then arity- and
+		/// nesting-separator-stripped), an exact FullName match ("Ns.List", "Ns.A`1+B`2"),
+		/// a case-insensitive FullName match, a namespace-less simple-name match ("List"),
+		/// and finally a trailing-segment-path match ("Dictionary.KeyCollection").
+		/// </para>
+		/// The first rule that matches exactly one type wins; a rule matching more than one
+		/// stops the ladder and reports the ambiguity (the candidates) rather than guessing;
+		/// no match at all yields a not-found message with name suggestions.
+		/// </summary>
+		static bool TryResolveType(IDecompilerTypeSystem typeSystem, string typeName, out ITypeDefinition typeDefinition, out string error)
+		{
+			typeDefinition = null;
+			error = null;
+
+			// Exact match on the reflection name. This is the canonical form printed by
+			// --list-* (e.g. "Ns.List`1") and the only form that resolves generic types directly.
+			var exact = typeSystem.FindType(new FullTypeName(typeName)).GetDefinition();
+			if (exact != null)
+			{
+				typeDefinition = exact;
+				return true;
+			}
+
+			var allTypes = typeSystem.MainModule.TypeDefinitions.ToList();
+
+			// Reduce whatever spelling the user gave to the shape of ITypeDefinition.FullName
+			// ('.'-separated, no `n arity). The grammar parser drops assembly qualification,
+			// generic arguments and array/pointer/byref decorations so they cannot leak into the
+			// comparison key; if the input is not a well-formed type name we match against it as-is.
+			string normalized = TryNormalizeTypeName(typeName, out string parsed) ? parsed : typeName;
+
+			// Arity- and separator-insensitive: "Ns.CachedPsiValue" finds "Ns.CachedPsiValue`1",
+			// and any spelling of a nested generic ("Ns.A.B", "Ns.A`1+B`2") finds it.
+			if (TrySingleMatch(allTypes, t => t.FullName == normalized, typeName, out typeDefinition, out error))
+				return true;
+			if (error != null)
+				return false;
+
+			// Case-insensitive variant of the same.
+			if (TrySingleMatch(allTypes, t => string.Equals(t.FullName, normalized, StringComparison.OrdinalIgnoreCase),
+				typeName, out typeDefinition, out error))
+				return true;
+			if (error != null)
+				return false;
+
+			// Simple name only, with the namespace omitted (e.g. "CachedPsiValue").
+			if (TrySingleMatch(allTypes, t => string.Equals(t.Name, normalized, StringComparison.OrdinalIgnoreCase),
+				typeName, out typeDefinition, out error))
+				return true;
+			if (error != null)
+				return false;
+
+			// Trailing segment path: "Dictionary.KeyCollection" finds
+			// "System.Collections.Generic.Dictionary`2+KeyCollection". Matching whole '.'-separated
+			// segments keeps "ReadOnlyDictionary.KeyCollection" from being treated as a match.
+			string[] suffixSegments = normalized.Split('.');
+			if (TrySingleMatch(allTypes, t => IsTrailingSegmentPath(t.FullName, suffixSegments),
+				typeName, out typeDefinition, out error))
+				return true;
+			if (error != null)
+				return false;
+
+			error = FormatNotFound(typeName, allTypes);
+			return false;
+		}
+
+		/// <summary>
+		/// Returns true if <paramref name="suffixSegments"/> equals the trailing run of
+		/// '.'-separated segments of <paramref name="fullName"/>. The comparison is on whole
+		/// segments, so "Dictionary.KeyCollection" matches "...Generic.Dictionary.KeyCollection"
+		/// but not "...ObjectModel.ReadOnlyDictionary.KeyCollection".
+		/// </summary>
+		static bool IsTrailingSegmentPath(string fullName, string[] suffixSegments)
+		{
+			string[] segments = fullName.Split('.');
+			if (suffixSegments.Length > segments.Length)
+				return false;
+			int offset = segments.Length - suffixSegments.Length;
+			for (int i = 0; i < suffixSegments.Length; i++)
+			{
+				if (!string.Equals(segments[offset + i], suffixSegments[i], StringComparison.Ordinal))
+					return false;
+			}
+			return true;
+		}
+
+		/// <summary>
+		/// Parses a type name in any reflection-grammar spelling and reduces it to the shape of
+		/// <see cref="INamedElement.FullName"/>. Assembly qualification, generic arguments and
+		/// array/pointer/byref decorations are dropped by the parser; the remaining arity
+		/// suffixes (<c>`n</c>) are then removed and the nested-type separator <c>+</c> is
+		/// replaced with <c>.</c>. Returns false when the input is not a well-formed type name.
+		/// </summary>
+		static bool TryNormalizeTypeName(string typeName, out string normalized)
+		{
+			normalized = null;
+			// Fully qualified: the ILSpyCmdProgram.TypeName option property shadows the type name.
+			if (!System.Reflection.Metadata.TypeName.TryParse(typeName, out System.Reflection.Metadata.TypeName parsed))
+				return false;
+
+			// Peel decorations down to the underlying type definition: arrays, pointers and
+			// byrefs expose an element type, and a constructed generic exposes its open definition.
+			while (parsed.IsArray || parsed.IsPointer || parsed.IsByRef)
+				parsed = parsed.GetElementType();
+			if (parsed.IsConstructedGenericType)
+				parsed = parsed.GetGenericTypeDefinition();
+
+			// parsed.FullName is now free of assembly and generic-argument noise; only the arity
+			// suffixes and '+' separators still differ from ITypeDefinition.FullName.
+			var sb = new System.Text.StringBuilder(parsed.FullName.Length);
+			string reflectionName = parsed.FullName;
+			int i = 0;
+			while (i < reflectionName.Length)
+			{
+				char c = reflectionName[i];
+				if (c == '`')
+				{
+					i++;
+					while (i < reflectionName.Length && char.IsDigit(reflectionName[i]))
+						i++;
+				}
+				else
+				{
+					sb.Append(c == '+' ? '.' : c);
+					i++;
+				}
+			}
+			normalized = sb.ToString();
+			return true;
+		}
+
+		/// <summary>
+		/// Selects the single type definition matching <paramref name="predicate"/>. Sets
+		/// <paramref name="error"/> when the predicate matches more than one type so the caller
+		/// can report the ambiguity instead of silently picking one.
+		/// </summary>
+		static bool TrySingleMatch(IReadOnlyList<ITypeDefinition> allTypes, Func<ITypeDefinition, bool> predicate, string typeName, out ITypeDefinition typeDefinition, out string error)
+		{
+			typeDefinition = null;
+			error = null;
+			var matches = allTypes.Where(predicate).ToList();
+			if (matches.Count == 1)
+			{
+				typeDefinition = matches[0];
+				return true;
+			}
+			if (matches.Count > 1)
+			{
+				error = $"The type name '{typeName}' is ambiguous between:{Environment.NewLine}"
+					+ string.Join(Environment.NewLine, matches.Select(t => "    " + t.FullTypeName.ReflectionName))
+					+ $"{Environment.NewLine}Specify the full reflection name (including the `n generic-arity suffix).";
+			}
+			return false;
+		}
+
+		static string FormatNotFound(string typeName, IReadOnlyList<ITypeDefinition> allTypes)
+		{
+			var message = $"Could not find a type named '{typeName}'.";
+
+			// Suggest types whose name contains the requested simple name (case-insensitive).
+			int lastDot = typeName.LastIndexOf('.');
+			string simpleName = lastDot >= 0 ? typeName.Substring(lastDot + 1) : typeName;
+			int backtick = simpleName.IndexOf('`');
+			if (backtick >= 0)
+				simpleName = simpleName.Substring(0, backtick);
+
+			// Prefer types whose simple name contains the requested name; if a typo means
+			// nothing contains it, fall back to a subsequence match (the requested letters
+			// appearing in order), which still catches names with a dropped character.
+			var suggestions = SelectSuggestions(allTypes,
+				t => t.Name.IndexOf(simpleName, StringComparison.OrdinalIgnoreCase) >= 0);
+			if (suggestions.Count == 0)
+				suggestions = SelectSuggestions(allTypes, t => IsSubsequence(simpleName, t.Name));
+
+			if (suggestions.Count > 0)
+			{
+				message += $"{Environment.NewLine}Did you mean one of the following?{Environment.NewLine}"
+					+ string.Join(Environment.NewLine, suggestions.Select(n => "    " + n));
+			}
+			return message;
+		}
+
+		static List<string> SelectSuggestions(IReadOnlyList<ITypeDefinition> allTypes, Func<ITypeDefinition, bool> predicate)
+		{
+			return allTypes
+				.Where(predicate)
+				.Select(t => t.FullTypeName.ReflectionName)
+				.Distinct()
+				.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+				.Take(10)
+				.ToList();
+		}
+
+		/// <summary>
+		/// Returns true if every character of <paramref name="value"/> appears in
+		/// <paramref name="text"/> in order (case-insensitively), allowing gaps.
+		/// </summary>
+		static bool IsSubsequence(string value, string text)
+		{
+			int i = 0;
+			foreach (char c in text)
+			{
+				if (i < value.Length && char.ToUpperInvariant(c) == char.ToUpperInvariant(value[i]))
+					i++;
+			}
+			return i == value.Length;
 		}
 
 		int GeneratePdbForAssembly(string assemblyFileName, string pdbFileName, CommandLineApplication app)
@@ -484,10 +845,10 @@ Examples:
 				return ProgramExitCodes.EX_DATAERR;
 			}
 
-			using (FileStream stream = new FileStream(pdbFileName, FileMode.OpenOrCreate, FileAccess.Write))
+			using (FileStream stream = new FileStream(pdbFileName, FileMode.Create, FileAccess.Write))
 			{
 				var decompiler = GetDecompiler(assemblyFileName);
-				PortablePdbWriter.WritePdb(module, decompiler, GetSettings(module), stream);
+				new PortablePdbWriter().WritePdb(module, decompiler, GetSettings(module), stream);
 			}
 
 			return 0;

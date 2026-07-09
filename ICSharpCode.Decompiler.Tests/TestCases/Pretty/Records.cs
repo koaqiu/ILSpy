@@ -1,6 +1,7 @@
 using System;
 #if CS100
 using System.Runtime.InteropServices;
+using System.Text;
 #endif
 
 namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
@@ -18,7 +19,22 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 
 		public record Derived(int B) : Base(B.ToString());
 
+		public record BaseRecordWithObject(object Id);
+
+		public record DerivedRecordWithString : BaseRecordWithObject
+		{
+			public DerivedRecordWithString(string Id)
+				: base(Id)
+			{
+			}
+		}
+
 		public record Empty;
+
+		public record EmptyWithStaticField
+		{
+			public static readonly Empty X = new Empty();
+		}
 
 		public record Fields
 		{
@@ -128,7 +144,6 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			public abstract string AbstractProp { get; }
 		}
 
-
 		public abstract record BaseRecord
 		{
 			public string Name { get; }
@@ -217,11 +232,24 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 				this.A = A;
 			}
 		}
+
+		private record RecordWithMultipleInitializerAssignmentsInPrimaryCtor(string name, string? value, in object encode)
+		{
+			public string? Value { get; } = name;
+
+			public string Name { get; } = value;
+
+			private string? WebValue { get; } = (name != null) ? "111" : value;
+
+			private string? WebValue2;
+		}
 	}
 
 #if CS100
 	internal class RecordStructs
 	{
+		public readonly record struct ReadonlyPoint(int X, int Y);
+
 		public record struct Base(string A);
 
 		public record CopyCtor(string A)
@@ -398,6 +426,45 @@ namespace ICSharpCode.Decompiler.Tests.TestCases.Pretty
 			public RecordWithMultipleCtors(string A)
 			{
 				this.A = int.Parse(A);
+			}
+		}
+
+		public record struct RecordCtorChain(int A, string B)
+		{
+#if EXPECTED_OUTPUT
+			public double C = 0.0;
+#else
+			public double C;
+#endif
+			public RecordCtorChain(int A)
+				: this(A, "default")
+			{
+				C = 3.14;
+			}
+			public RecordCtorChain(string B)
+				: this(42, B)
+			{
+				C = 1.41;
+			}
+		}
+	}
+
+	internal class RecordsWithCustomSynthesizedMembers
+	{
+		public record WithCustomToString(int A)
+		{
+			public sealed override string ToString()
+			{
+				return "custom";
+			}
+		}
+
+		public record WithCustomPrintMembers(int A)
+		{
+			protected virtual bool PrintMembers(StringBuilder builder)
+			{
+				builder.Append("X");
+				return true;
 			}
 		}
 	}

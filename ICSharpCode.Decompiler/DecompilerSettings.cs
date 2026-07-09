@@ -175,12 +175,13 @@ namespace ICSharpCode.Decompiler
 			if (languageVersion < CSharp.LanguageVersion.CSharp14_0)
 			{
 				extensionMembers = false;
+				firstClassSpanTypes = false;
 			}
 		}
 
 		public CSharp.LanguageVersion GetMinimumRequiredVersion()
 		{
-			if (extensionMembers)
+			if (extensionMembers || firstClassSpanTypes)
 				return CSharp.LanguageVersion.CSharp14_0;
 			if (paramsCollections)
 				return CSharp.LanguageVersion.CSharp13_0;
@@ -1350,6 +1351,20 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
+		bool expandXmlDocumentationComments = false;
+
+		[Browsable(false)]
+		public bool ExpandXmlDocumentationComments {
+			get { return expandXmlDocumentationComments; }
+			set {
+				if (expandXmlDocumentationComments != value)
+				{
+					expandXmlDocumentationComments = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
 		bool expandMemberDefinitions = false;
 
 		[Browsable(false)]
@@ -2166,7 +2181,7 @@ namespace ICSharpCode.Decompiler
 		/// <summary>
 		/// Gets/Sets whether C# 14.0 extension members should be transformed.
 		/// </summary>
-		[Category("C# 14.0 / VS 202x.yy")]
+		[Category("C# 14.0 / VS 2026")]
 		[Description("DecompilerSettings.ExtensionMembers")]
 		public bool ExtensionMembers {
 			get { return extensionMembers; }
@@ -2174,6 +2189,24 @@ namespace ICSharpCode.Decompiler
 				if (extensionMembers != value)
 				{
 					extensionMembers = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		bool firstClassSpanTypes = true;
+
+		/// <summary>
+		/// Gets/Sets whether (ReadOnly)Span&lt;T&gt; should be treated like built-in types.
+		/// </summary>
+		[Category("C# 14.0 / VS 2026")]
+		[Description("DecompilerSettings.FirstClassSpanTypes")]
+		public bool FirstClassSpanTypes {
+			get { return firstClassSpanTypes; }
+			set {
+				if (firstClassSpanTypes != value)
+				{
+					firstClassSpanTypes = value;
 					OnPropertyChanged();
 				}
 			}
@@ -2327,6 +2360,26 @@ namespace ICSharpCode.Decompiler
 				if (sortCustomAttributes != value)
 				{
 					sortCustomAttributes = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		bool sortSwitchSections = false;
+
+		/// <summary>
+		/// Sort switch sections by their label value instead of by IL offset.
+		/// Useful when diffing decompiler output across rebuilds of obfuscated assemblies,
+		/// where IL block layout is unstable but the case-to-value mapping is not.
+		/// </summary>
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.SortSwitchSections")]
+		public bool SortSwitchSections {
+			get { return sortSwitchSections; }
+			set {
+				if (sortSwitchSections != value)
+				{
+					sortSwitchSections = value;
 					OnPropertyChanged();
 				}
 			}

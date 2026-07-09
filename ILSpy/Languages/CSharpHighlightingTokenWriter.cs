@@ -17,9 +17,11 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
-using ICSharpCode.AvalonEdit.Highlighting;
+using AvaloniaEdit.Highlighting;
+
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.OutputVisitor;
 using ICSharpCode.Decompiler.CSharp.Syntax;
@@ -27,7 +29,9 @@ using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.ILSpyX.Extensions;
 
-namespace ICSharpCode.ILSpy
+using ICSharpCode.ILSpy.TextView;
+
+namespace ICSharpCode.ILSpy.Languages
 {
 	class CSharpHighlightingTokenWriter : DecoratingTokenWriter
 	{
@@ -73,7 +77,7 @@ namespace ICSharpCode.ILSpy
 
 		public RichTextModel HighlightingModel { get; } = new RichTextModel();
 
-		public CSharpHighlightingTokenWriter(TokenWriter decoratedWriter, ISmartTextOutput textOutput = null, ILocatable locatable = null)
+		public CSharpHighlightingTokenWriter(TokenWriter decoratedWriter, ISmartTextOutput? textOutput = null, ILocatable? locatable = null)
 			: base(decoratedWriter)
 		{
 			var highlighting = HighlightingManager.Instance.GetDefinition("C#");
@@ -120,14 +124,20 @@ namespace ICSharpCode.ILSpy
 			//this.externAliasKeywordColor = ...;
 		}
 
-		public override void WriteKeyword(Role role, string keyword)
+		public CSharpHighlightingTokenWriter(TokenWriter decoratedWriter, AvaloniaEditTextOutput textOutput, ILocatable? locatable = null)
+			: this(decoratedWriter, (ISmartTextOutput?)textOutput, locatable)
 		{
-			HighlightingColor color = null;
+			this.nodeTrackingOutput = textOutput;
+		}
+
+		public override void WriteKeyword(string keyword)
+		{
+			HighlightingColor? color = null;
 			switch (keyword)
 			{
 				case "namespace":
 				case "using":
-					if (role == UsingStatement.UsingKeywordRole)
+					if (nodeStack.PeekOrDefault() is UsingStatement)
 						color = structureKeywordsColor;
 					else
 						color = namespaceKeywordsColor;
@@ -183,7 +193,7 @@ namespace ICSharpCode.ILSpy
 					color = typeKeywordsColor;
 					break;
 				case "with":
-					if (role == WithInitializerExpression.WithKeywordRole)
+					if (nodeStack.PeekOrDefault() is WithInitializerExpression)
 						color = typeKeywordsColor;
 					break;
 				case "try":
@@ -193,7 +203,7 @@ namespace ICSharpCode.ILSpy
 					color = exceptionKeywordsColor;
 					break;
 				case "when":
-					if (role == CatchClause.WhenKeywordRole)
+					if (nodeStack.PeekOrDefault() is CatchClause)
 						color = exceptionKeywordsColor;
 					break;
 				case "get":
@@ -201,11 +211,7 @@ namespace ICSharpCode.ILSpy
 				case "add":
 				case "remove":
 				case "init":
-					if (role == PropertyDeclaration.GetKeywordRole ||
-						role == PropertyDeclaration.SetKeywordRole ||
-						role == PropertyDeclaration.InitKeywordRole ||
-						role == CustomEventDeclaration.AddKeywordRole ||
-						role == CustomEventDeclaration.RemoveKeywordRole)
+					if (nodeStack.PeekOrDefault() is Accessor)
 						color = accessorKeywordsColor;
 					break;
 				case "abstract":
@@ -219,10 +225,11 @@ namespace ICSharpCode.ILSpy
 				case "volatile":
 				case "async":
 				case "partial":
+				case "required":
 					color = modifiersColor;
 					break;
 				case "readonly":
-					if (role == ComposedType.ReadonlyRole)
+					if (nodeStack.PeekOrDefault() is ComposedType)
 						color = parameterModifierColor;
 					else
 						color = modifiersColor;
@@ -246,7 +253,8 @@ namespace ICSharpCode.ILSpy
 					color = referenceTypeKeywordsColor;
 					break;
 				case "record":
-					color = role == Roles.RecordKeyword ? referenceTypeKeywordsColor : valueTypeKeywordsColor;
+					color = nodeStack.PeekOrDefault() is TypeDeclaration { ClassType: ClassType.RecordClass }
+						? referenceTypeKeywordsColor : valueTypeKeywordsColor;
 					break;
 				case "select":
 				case "group":
@@ -287,20 +295,13 @@ namespace ICSharpCode.ILSpy
 			}
 			if (nodeStack.PeekOrDefault() is AttributeSection)
 				color = attributeKeywordsColor;
-			if (color != null)
-			{
-				BeginSpan(color);
-			}
-			base.WriteKeyword(role, keyword);
-			if (color != null)
-			{
-				EndSpan();
-			}
+			using (Colored(color))
+				base.WriteKeyword(keyword);
 		}
 
 		public override void WritePrimitiveType(string type)
 		{
-			HighlightingColor color = null;
+			HighlightingColor? color = null;
 			switch (type)
 			{
 				case "new":
@@ -324,6 +325,9 @@ namespace ICSharpCode.ILSpy
 				case "ushort":
 				case "ulong":
 				case "unmanaged":
+				// The C# 13 'allows ref struct' anti-constraint is emitted as a single PrimitiveType
+				// token (TypeSystemAstBuilder), so it is coloured here as one unit rather than per word.
+				case "allows ref struct":
 				case "nint":
 				case "nuint":
 					color = valueTypeKeywordsColor;
@@ -336,27 +340,20 @@ namespace ICSharpCode.ILSpy
 					color = referenceTypeKeywordsColor;
 					break;
 			}
-			if (color != null)
-			{
-				BeginSpan(color);
-			}
-			base.WritePrimitiveType(type);
-			if (color != null)
-			{
-				EndSpan();
-			}
+			using (Colored(color))
+				base.WritePrimitiveType(type);
 		}
 
 		public override void WriteIdentifier(Identifier identifier)
 		{
-			HighlightingColor color = null;
+			HighlightingColor? color = null;
 			if (identifier.Parent?.GetResolveResult() is ILVariableResolveResult rr)
 			{
 				if (rr.Variable.Kind == VariableKind.Parameter)
 				{
 					if (identifier.Name == "value"
 						&& identifier.Ancestors.OfType<Accessor>().FirstOrDefault() is { } accessor
-						&& accessor.Role != PropertyDeclaration.GetterRole)
+						&& accessor.Slot?.Kind != Slots.Getter)
 					{
 						color = valueKeywordColor;
 					}
@@ -420,18 +417,11 @@ namespace ICSharpCode.ILSpy
 					color = eventAccessColor;
 					break;
 			}
-			if (color != null)
-			{
-				BeginSpan(color);
-			}
-			base.WriteIdentifier(identifier);
-			if (color != null)
-			{
-				EndSpan();
-			}
+			using (Colored(color))
+				base.WriteIdentifier(identifier);
 		}
 
-		void ApplyTypeColor(IType type, ref HighlightingColor color)
+		void ApplyTypeColor(IType? type, ref HighlightingColor? color)
 		{
 			switch (type?.Kind)
 			{
@@ -453,9 +443,9 @@ namespace ICSharpCode.ILSpy
 			}
 		}
 
-		public override void WritePrimitiveValue(object value, Decompiler.CSharp.Syntax.LiteralFormat format)
+		public override void WritePrimitiveValue(object? value, ICSharpCode.Decompiler.CSharp.Syntax.LiteralFormat format)
 		{
-			HighlightingColor color = null;
+			HighlightingColor? color = null;
 			if (value is null)
 			{
 				color = valueKeywordColor;
@@ -464,18 +454,11 @@ namespace ICSharpCode.ILSpy
 			{
 				color = trueKeywordColor;
 			}
-			if (color != null)
-			{
-				BeginSpan(color);
-			}
-			base.WritePrimitiveValue(value, format);
-			if (color != null)
-			{
-				EndSpan();
-			}
+			using (Colored(color))
+				base.WritePrimitiveValue(value, format);
 		}
 
-		ISymbol GetCurrentDefinition()
+		ISymbol? GetCurrentDefinition()
 		{
 			if (nodeStack == null || nodeStack.Count == 0)
 				return null;
@@ -483,30 +466,30 @@ namespace ICSharpCode.ILSpy
 			var node = nodeStack.Peek();
 			if (node is Identifier)
 				node = node.Parent;
-			if (Decompiler.TextTokenWriter.IsDefinition(ref node))
+			if (ICSharpCode.Decompiler.TextTokenWriter.IsDefinition(ref node))
 				return node.GetSymbol();
 
 			return null;
 		}
 
-		ISymbol GetCurrentMemberReference()
+		ISymbol? GetCurrentMemberReference()
 		{
 			if (nodeStack == null || nodeStack.Count == 0)
 				return null;
 
 			AstNode node = nodeStack.Peek();
 			var symbol = node.GetSymbol();
-			if (symbol == null && node.Role == Roles.TargetExpression && node.Parent is InvocationExpression)
+			if (symbol == null && node.Slot?.Kind == Slots.TargetExpression && node.Parent is InvocationExpression)
 			{
 				symbol = node.Parent.GetSymbol();
 			}
-			if (symbol != null && node.Role == Roles.Type && node.Parent is ObjectCreateExpression)
+			if (symbol != null && node.Slot?.Kind == Slots.Type && node.Parent is ObjectCreateExpression)
 			{
 				var ctorSymbol = node.Parent.GetSymbol();
 				if (ctorSymbol != null)
 					symbol = ctorSymbol;
 			}
-			if (node is IdentifierExpression && node.Role == Roles.TargetExpression && node.Parent is InvocationExpression && symbol is IMember member)
+			if (node is IdentifierExpression && node.Slot?.Kind == Slots.TargetExpression && node.Parent is InvocationExpression && symbol is IMember member)
 			{
 				var declaringType = member.DeclaringType;
 				if (declaringType != null && declaringType.Kind == TypeKind.Delegate)
@@ -519,6 +502,7 @@ namespace ICSharpCode.ILSpy
 
 		public override void StartNode(AstNode node)
 		{
+			nodeTrackingOutput?.MarkNodeStart(node);
 			nodeStack.Push(node);
 			base.StartNode(node);
 		}
@@ -526,14 +510,32 @@ namespace ICSharpCode.ILSpy
 		public override void EndNode(AstNode node)
 		{
 			base.EndNode(node);
+			nodeTrackingOutput?.MarkNodeEnd(node);
 			nodeStack.Pop();
 		}
 
 		readonly Stack<HighlightingColor> colorStack = new Stack<HighlightingColor>();
 		HighlightingColor currentColor = new HighlightingColor();
 		int currentColorBegin = -1;
-		readonly ILocatable locatable;
-		readonly ISmartTextOutput textOutput;
+		readonly ILocatable? locatable;
+		readonly ISmartTextOutput? textOutput;
+		readonly AvaloniaEditTextOutput? nodeTrackingOutput;
+
+		// Wraps a base WriteX call so its output lands inside a highlighting span for the given colour
+		// (or no span when null) -- replacing the begin/end guard each WriteX override used to repeat.
+		// A ref struct + the using pattern keeps this allocation-free on the per-token hot path.
+		ColorScope Colored(HighlightingColor? color)
+		{
+			if (color == null)
+				return default;
+			BeginSpan(color);
+			return new ColorScope(this);
+		}
+
+		ref struct ColorScope(CSharpHighlightingTokenWriter? writer)
+		{
+			public void Dispose() => writer?.EndSpan();
+		}
 
 		private void BeginSpan(HighlightingColor highlightingColor)
 		{
@@ -543,6 +545,9 @@ namespace ICSharpCode.ILSpy
 				return;
 			}
 
+			// At least one of textOutput / locatable is supplied to the constructor;
+			// the early-return above handles the textOutput path, so locatable is non-null here.
+			Debug.Assert(locatable != null);
 			if (currentColorBegin > -1)
 				HighlightingModel.SetHighlighting(currentColorBegin, locatable.Length - currentColorBegin, currentColor);
 			colorStack.Push(currentColor);
@@ -560,6 +565,8 @@ namespace ICSharpCode.ILSpy
 				return;
 			}
 
+			// See BeginSpan: locatable is the non-null branch when textOutput is unset.
+			Debug.Assert(locatable != null);
 			HighlightingModel.SetHighlighting(currentColorBegin, locatable.Length - currentColorBegin, currentColor);
 			currentColor = colorStack.Pop();
 			currentColorBegin = locatable.Length;
